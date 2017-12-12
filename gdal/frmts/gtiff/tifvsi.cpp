@@ -81,12 +81,23 @@ typedef struct
     void**       ppCachedData;
     vsi_l_offset* panCachedOffsets;
     size_t*       panCachedSizes;
+
+    char*         filename;
+    char*         mode;
+    bool          closeFile;
 } GDALTiffHandle;
 
 static tsize_t
 _tiffReadProc( thandle_t th, tdata_t buf, tsize_t size )
 {
     GDALTiffHandle* psGTH = reinterpret_cast<GDALTiffHandle *>(th);
+
+    // Reopen
+    if( psGTH->fpL == NULL )
+    {
+        psGTH->fpL = VSIFOpenL( psGTH->filename, psGTH->mode );
+        psGTH->closeFile = true;
+    }
 
     if( psGTH->nCachedRanges )
     {
@@ -185,6 +196,13 @@ _tiffSeekProc( thandle_t th, toff_t off, int whence )
 {
     GDALTiffHandle* psGTH = reinterpret_cast<GDALTiffHandle *>( th );
 
+    // Reopen
+    if( psGTH->fpL == NULL )
+    {
+        psGTH->fpL = VSIFOpenL( psGTH->filename, psGTH->mode );
+        psGTH->closeFile = true;
+    }
+
     // Optimization: if we are already at end, then no need to
     // issue a VSIFSeekL().
     if( whence == SEEK_END )
@@ -228,6 +246,10 @@ _tiffCloseProc( thandle_t th )
     CPLFree(psGTH->ppCachedData);
     CPLFree(psGTH->panCachedOffsets);
     CPLFree(psGTH->panCachedSizes);
+    CPLFree(psGTH->filename);
+    CPLFree(psGTH->mode);
+    if( psGTH->closeFile )
+        VSIFCloseL(psGTH->fpL);
     CPLFree(psGTH);
     return 0;
 }
@@ -351,6 +373,9 @@ TIFF* VSI_TIFFOpen( const char* name, const char* mode,
     psGTH->fpL = fpL;
     psGTH->nExpectedPos = 0;
     psGTH->bAtEndOfFile = false;
+    psGTH->filename = VSIStrdup(name);
+    psGTH->mode = VSIStrdup(mode);
+    psGTH->closeFile = false;
 
     // No need to buffer on /vsimem/
     bool bAllocBuffer = !bReadOnly;
@@ -378,7 +403,20 @@ TIFF* VSI_TIFFOpen( const char* name, const char* mode,
                          _tiffSeekProc, _tiffCloseProc, _tiffSizeProc,
                          _tiffMapProc, _tiffUnmapProc );
     if( tif == NULL )
+    {
+        CPLFree(psGTH->filename);
+        CPLFree(psGTH->mode);
         CPLFree(psGTH);
+    }
 
     return tif;
+}
+
+int VSI_TIFFCloseFile( TIFF* tif )
+{
+    GDALTiffHandle* psGTH = static_cast<GDALTiffHandle *>(
+        TIFFClientdata(tif) );
+    int ret = VSIFCloseL(psGTH->fpL);
+    psGTH->fpL = NULL;
+    return ret;
 }
