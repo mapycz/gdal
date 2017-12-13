@@ -172,6 +172,9 @@ public:
 
 class VSIUnixStdioHandle CPL_FINAL : public VSIVirtualHandle
 {
+    std::string   sFilename;
+    std::string   sAccess;
+    int           nErrNo;
     FILE          *fp;
     vsi_l_offset  m_nOffset;
     bool          bReadOnly;
@@ -187,11 +190,14 @@ class VSIUnixStdioHandle CPL_FINAL : public VSIVirtualHandle
     vsi_l_offset  nTotalBytesRead;
     VSIUnixStdioFilesystemHandler *poFS;
 #endif
+    FILE*          Open();
+    FILE*          Reopen();
   public:
                    VSIUnixStdioHandle( VSIUnixStdioFilesystemHandler *poFSIn,
-                                       FILE* fpIn, bool bReadOnlyIn,
-                                       bool bModeAppendReadWriteIn );
-
+                                       const char* pszFilenameIn,
+                                       const char* pszAccessIn );
+            int    ErrNo() const { return nErrNo; }
+            bool   IsReadOnly() const { return bReadOnly; }
     virtual int    Seek( vsi_l_offset nOffsetIn, int nWhence ) override;
     virtual vsi_l_offset Tell() override;
     virtual size_t Read( void *pBuffer, size_t nSize, size_t nMemb ) override;
@@ -200,6 +206,7 @@ class VSIUnixStdioHandle CPL_FINAL : public VSIVirtualHandle
     virtual int    Eof() override;
     virtual int    Flush() override;
     virtual int    Close() override;
+    virtual int    CloseNativeFileDescriptior() override;
     virtual int    Truncate( vsi_l_offset nNewSize ) override;
     virtual void  *GetNativeFileDescriptor() override {
         return reinterpret_cast<void *>(static_cast<size_t>(fileno(fp))); }
@@ -216,15 +223,20 @@ VSIUnixStdioHandle::VSIUnixStdioHandle(
 CPL_UNUSED
 #endif
                                        VSIUnixStdioFilesystemHandler *poFSIn,
-                                       FILE* fpIn, bool bReadOnlyIn,
-                                       bool bModeAppendReadWriteIn) :
-    fp(fpIn),
+                                       const char* pszFilenameIn,
+                                       const char* pszAccessIn) :
+    sFilename(pszFilenameIn),
+    sAccess(pszAccessIn),
+    nErrNo(0),
+    fp(Open()),
     m_nOffset(0),
-    bReadOnly(bReadOnlyIn),
+    bReadOnly(strcmp(pszAccessIn, "rb") == 0 ||
+              strcmp(pszAccessIn, "r") == 0),
     bLastOpWrite(false),
     bLastOpRead(false),
     bAtEOF(false),
-    bModeAppendReadWrite(bModeAppendReadWriteIn)
+    bModeAppendReadWrite(strcmp(pszAccessIn, "a+b") == 0 ||
+                         strcmp(pszAccessIn, "a+") == 0)
 #ifdef VSI_COUNT_BYTES_READ
     ,
     nTotalBytesRead(0),
@@ -246,6 +258,65 @@ int VSIUnixStdioHandle::Close()
 #endif
 
     return fclose( fp );
+}
+
+/************************************************************************/
+/*                    CloseNativeFileDescriptior()                      */
+/************************************************************************/
+
+int VSIUnixStdioHandle::CloseNativeFileDescriptior()
+
+{
+    VSIDebug1( "VSIUnixStdioHandle::CloseNativeFileDescriptior(%p)", fp );
+
+    return close( fileno( fp ) );
+}
+
+/************************************************************************/
+/*                               Open()                                 */
+/************************************************************************/
+
+FILE* VSIUnixStdioHandle::Open()
+
+{
+    FILE *f = VSI_FOPEN64( sFilename.c_str(), sAccess.c_str() );
+
+    if( f == NULL )
+    {
+        nErrNo = errno;
+    }
+
+    VSIDebug2( "VSIUnixStdioHandle::Open() = %p, errno = %d", f, nErrNo );
+
+    return f;
+}
+
+/************************************************************************/
+/*                               Reopen()                               */
+/************************************************************************/
+
+FILE* VSIUnixStdioHandle::Reopen()
+
+{
+    FILE *f = Open();
+
+    VSIDebug2( "VSIUnixStdioHandle::Reopen() = %p, errno = %d", f, nErrNo );
+
+    if( f == NULL )
+    {
+        return NULL;
+    }
+
+    if( VSI_FSEEK64( f, m_nOffset, SEEK_SET ) != 0 )
+    {
+        VSIDebug1("Seek after reopen failed: " CPL_FRMT_GUIB, m_nOffset);
+        return NULL;
+    }
+
+    //fclose( fp );
+    fp = f;
+
+    return f;
 }
 
 /************************************************************************/
@@ -282,8 +353,14 @@ int VSIUnixStdioHandle::Seek( vsi_l_offset nOffsetIn, int nWhence )
         }
     }
 
-    const int nResult = VSI_FSEEK64( fp, nOffsetIn, nWhence );
-    const int nError = errno;
+    int nResult = VSI_FSEEK64( fp, nOffsetIn, nWhence );
+    int nError = errno;
+
+    if( nResult == -1 && nError == EBADF && Reopen() != NULL )
+    {
+        nResult = VSI_FSEEK64( fp, nOffsetIn, nWhence );
+        nError = errno;
+    }
 
 #ifdef VSI_DEBUG
 
@@ -398,10 +475,16 @@ size_t VSIUnixStdioHandle::Read( void * pBuffer, size_t nSize, size_t nCount )
 /* -------------------------------------------------------------------- */
 /*      Perform the read.                                               */
 /* -------------------------------------------------------------------- */
-    const size_t nResult = fread( pBuffer, nSize, nCount, fp );
+    size_t nResult = fread( pBuffer, nSize, nCount, fp );
+    int nError = errno;
+
+    if( nError == EBADF && ferror(fp) != 0 && Reopen() != NULL )
+    {
+        nResult = fread( pBuffer, nSize, nCount, fp );
+        nError = errno;
+    }
 
 #ifdef VSI_DEBUG
-    const int nError = errno;
     VSIDebug4( "VSIUnixStdioHandle::Read(%p,%ld,%ld) = %ld",
                fp, static_cast<long>(nSize), static_cast<long>(nCount),
                static_cast<long>(nResult) );
@@ -622,42 +705,34 @@ VSIUnixStdioFilesystemHandler::Open( const char *pszFilename,
                                      bool bSetError )
 
 {
-    FILE *fp = VSI_FOPEN64( pszFilename, pszAccess );
-    const int nError = errno;
+    VSIDebug2( "VSIUnixStdioFilesystemHandler::Open(\"%s\",\"%s\")",
+               pszFilename, pszAccess );
 
-    VSIDebug3( "VSIUnixStdioFilesystemHandler::Open(\"%s\",\"%s\") = %p",
-               pszFilename, pszAccess, fp );
+    VSIUnixStdioHandle *poHandle =
+        new(std::nothrow) VSIUnixStdioHandle( this, pszFilename, pszAccess );
 
-    if( fp == NULL )
+    if( poHandle == NULL )
+    {
+        return NULL;
+    }
+
+    if( poHandle->ErrNo() != 0 )
     {
         if( bSetError )
         {
-            VSIError(VSIE_FileError, "%s: %s", pszFilename, strerror(nError));
+            VSIError(VSIE_FileError, "%s: %s", pszFilename,
+                     strerror(poHandle->ErrNo()));
         }
-        errno = nError;
+        errno = poHandle->ErrNo();
+        delete poHandle;
         return NULL;
     }
-
-    const bool bReadOnly =
-        strcmp(pszAccess, "rb") == 0 || strcmp(pszAccess, "r") == 0;
-    const bool bModeAppendReadWrite =
-        strcmp(pszAccess, "a+b") == 0 || strcmp(pszAccess, "a+") == 0;
-    VSIUnixStdioHandle *poHandle =
-        new(std::nothrow) VSIUnixStdioHandle( this, fp, bReadOnly,
-                                              bModeAppendReadWrite );
-    if( poHandle == NULL )
-    {
-        fclose(fp);
-        return NULL;
-    }
-
-    errno = nError;
 
 /* -------------------------------------------------------------------- */
 /*      If VSI_CACHE is set we want to use a cached reader instead      */
 /*      of more direct io on the underlying file.                       */
 /* -------------------------------------------------------------------- */
-    if( bReadOnly &&
+    if( poHandle->IsReadOnly() &&
         CPLTestBool( CPLGetConfigOption( "VSI_CACHE", "FALSE" ) ) )
     {
         return VSICreateCachedFile( poHandle );

@@ -753,6 +753,16 @@ int VSIFCloseL( VSILFILE * fp )
     return nResult;
 }
 
+int VSIFCloseNativeFileDescriptorL( VSILFILE * fp )
+
+{
+    VSIVirtualHandle *poFileHandle = reinterpret_cast<VSIVirtualHandle *>( fp );
+
+    VSIDebug1( "VSIFCloseDescriptorL(%p)", fp );
+
+    return poFileHandle->CloseNativeFileDescriptior();
+}
+
 /************************************************************************/
 /*                             VSIFSeekL()                              */
 /************************************************************************/
