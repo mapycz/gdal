@@ -12420,6 +12420,17 @@ GDALDataset *GTiffDataset::Open( GDALOpenInfo * poOpenInfo )
         poDS->LoadGeoreferencingAndPamIfNeeded();
     }
 
+    if ( CPLTestBool(CPLGetConfigOption("GTIFF_FORK_SAFE", "NO")) &&
+         VSIFCloseDescriptorL(poDS->fpL) != 0 )
+    {
+        CPLError(
+            CE_Failure, CPLE_AppDefined,
+            "Cannot close the TIFF file. The close operation is "
+            "requested by GTIFF_FORK_SAFE option." );
+        delete poDS;
+        return NULL;
+    }
+
     return poDS;
 }
 
