@@ -1,0 +1,233 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+#
+# Original debian package by Alessandro Amici 2002-2003.
+# Currently maintained by DebianGis contributors.
+# Based on: GNU copyright 1997 to 1999 by Joey Hess.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# Enable hardening build flags
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+# Disable PIE on Ubuntu where it's still problematic
+VENDOR_DERIVES_FROM_UBUNTU ?= $(shell dpkg-vendor --derives-from Ubuntu && echo yes)
+
+ifeq ($(VENDOR_DERIVES_FROM_UBUNTU),yes)
+	export DEB_BUILD_MAINT_OPTIONS=hardening=+all,-pie
+endif
+
+include /usr/share/dpkg/pkg-info.mk
+
+UPSTREAM_VERSION = $(shell echo $(DEB_VERSION_UPSTREAM) | sed -e 's/\+.*//')
+
+PYVERS=$(shell pyversions -v -r debian/control) $(shell py3versions -v -r)
+PYDEF=$(shell pyversions -dv)
+PERLDEF=$(shell perl -V:version|cut -d\' -f2)
+SWIGVER=$(shell swig -version |grep Version|cut -d' ' -f3|sed -e 's/\.//g')
+
+GDALVER=$(shell cat VERSION|sed -e 's/\./ /g')
+GDAL_MAJOR=$(word 1,$(GDALVER))
+GDAL_MINOR=$(word 2,$(GDALVER))
+GDAL_PATCH=$(word 3,$(GDALVER))
+
+ifeq (,$(DEB_HOST_MULTIARCH))
+  DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+endif
+
+ifneq ($(wildcard /usr/lib/$(DEB_HOST_MULTIARCH)/hdf5/serial/libhdf5.so),)
+  WITH_HDF5:=--with-hdf5=/usr/lib/$(DEB_HOST_MULTIARCH)/hdf5/serial
+else
+  WITH_HDF5:=
+endif
+
+versions:
+	@echo Gdal version: $(GDAL_MAJOR).$(GDAL_MINOR).$(GDAL_PATCH)
+	@echo Swig version: $(SWIGVER)
+	@echo Python default: $(PYDEF)
+	@echo Python versions: $(PYVERS)
+	@echo Perl default: $(PERLDEF)
+
+#
+# The following targets are useful to autogen independent plugins sources
+#
+gdal-grass: override_dh_auto_configure gdal-grass-dist override_dh_auto_clean override_dh_clean
+gdal-grass-dist:
+	ln -fs $(CURDIR)/GDALmake.opt-$(PYDEF) $(CURDIR)/GDALmake.opt
+	[ -e $(CURDIR)/GDALmake.opt ] && $(MAKE) -C $(CURDIR)/frmts/grass dist
+	mv $(CURDIR)/frmts/grass/libgdal-grass-*.tar.gz $(CURDIR)/..
+	rm -f $(CURDIR)/GDALmake.opt
+
+gdal-ecw: override_dh_auto_configure gdal-ecw-dist override_dh_auto_clean override_dh_clean
+gdal-ecw-dist:
+	ln -fs $(CURDIR)/GDALmake.opt-$(PYDEF) $(CURDIR)/GDALmake.opt
+	[ -e $(CURDIR)/GDALmake.opt ] && $(MAKE) -C $(CURDIR)/frmts/ecw dist
+	mv $(CURDIR)/frmts/ecw/libgdal-ecw-*.tar.gz $(CURDIR)/..
+	rm -f $(CURDIR)/GDALmake.opt
+
+gdal-mrsid: override_dh_auto_configure gdal-mrsid-dist override_dh_auto_clean override_dh_clean
+gdal-mrsid-dist:
+	ln -fs $(CURDIR)/GDALmake.opt-$(PYDEF) $(CURDIR)/GDALmake.opt
+	[ -e $(CURDIR)/GDALmake.opt ] && $(MAKE) -C $(CURDIR)/frmts/mrsid dist
+	mv $(CURDIR)/frmts/mrsid/libgdal-mrsid-*.tar.gz $(CURDIR)/..
+	rm -f $(CURDIR)/GDALmake.opt
+
+%:
+	if [ "$@" != "gdal-grass" -a "$@" != "gdal-ecw" -a "$@" != "gdal-mrsid" ]; then \
+		dh $@ --with autotools_dev,autoreconf,python2,python3 --parallel ; \
+	fi
+
+override_dh_clean:
+	dh_clean config.log
+
+override_dh_auto_clean:
+	[ ! -f GDALmake.opt ] || $(MAKE) distclean
+	rm -rf $(CURDIR)/swig/perl/*.bs $(CURDIR)/swig/perl/doc
+	rm -rf $(CURDIR)/swig/java/*.so $(CURDIR)/swig/java/*.o $(CURDIR)/swig/java/build/ $(CURDIR)/swig/java/*.jar $(CURDIR)/swig/java/.libs
+	rm -rf $(CURDIR)/.libs
+	rm -f GDALmake.opt-*
+	rm -rf $(CURDIR)/debian/tmp $(CURDIR)/debian/python-tmp
+	rm -rf $(CURDIR)/doc/br/html $(CURDIR)/doc/ru/html
+	rm -rf $(CURDIR)/frmts/o/.libs
+	rm -f  $(CURDIR)/islibdappost310.*
+
+override_dh_auto_configure:
+	for V in $(PYVERS); do \
+		PYTHON=/usr/bin/python$$V ./configure --prefix=/usr \
+			--mandir=\$$\{prefix\}/share/man \
+			--includedir=\$$\{prefix\}/include/gdal \
+			--with-hide-internal-symbols=yes \
+			--with-rename-internal-libtiff-symbols=yes \
+			--with-rename-internal-libgeotiff-symbols=yes \
+			--with-threads \
+			--with-armadillo=yes \
+			--with-cfitsio=no \
+			--with-curl \
+			--with-ecw=no \
+			--with-epsilon=/usr \
+			--with-freexl=yes \
+			--with-geos \
+			--with-geotiff=yes \
+			--with-grass=no \
+			$(WITH_HDF5) \
+			--with-libjson-c=/usr \
+			--with-libkml=yes \
+			--with-liblzma=yes \
+			--with-libtiff=yes \
+			--with-mrsid=no \
+			--with-mysql \
+			--with-netcdf \
+			--with-odbc \
+			--with-ogdi \
+			--with-openjpeg=yes \
+			--with-pg \
+			--with-poppler=yes \
+			--with-qhull=yes \
+			--with-sosi=yes \
+			--with-spatialite=/usr \
+			--with-sqlite3 \
+			--with-webp \
+			--with-xerces \
+			--with-dods-root=/usr \
+			--with-static-proj4=yes \
+			--with-java=/usr/lib/jvm/default-java \
+			--with-perl \
+			--with-python; \
+		mv GDALmake.opt GDALmake.opt-$$V; \
+	done
+
+override_dh_auto_build:
+	cp `ls GDALmake.opt-*|tail -1` GDALmake.opt
+	$(MAKE) lib-target apps-target
+	rm -rf $(CURDIR)/swig/perl/*.c  $(CURDIR)/swig/perl/*.cpp
+	$(MAKE) -C $(CURDIR)/swig/perl generate build doc
+	$(MAKE) -C $(CURDIR)/swig/java clean generate build
+
+	# It needs pre-installing just after the building due to intermediate cleaning.
+	# Apply conditionally an on-fly patch for pre 1.3.38 swig versions.
+	for V in $(PYVERS); do \
+		cp GDALmake.opt-$$V GDALmake.opt; \
+		$(MAKE) -C $(CURDIR)/swig/python clean; \
+		$(MAKE) -C $(CURDIR)/swig/python generate build; \
+		$(MAKE) -C $(CURDIR)/swig/python install DESTDIR=$(CURDIR)/debian/python-tmp; \
+	done
+
+	mkdir $(CURDIR)/html || true
+	$(MAKE) docs
+	$(MAKE) man
+
+override_dh_auto_install:
+	cp `ls GDALmake.opt-*|tail -1` GDALmake.opt
+	$(MAKE) install BINDINGS="perl java" DESTDIR=$(CURDIR)/debian/tmp \
+			INST_DATA="\$$(prefix)/share/gdal/$(GDAL_MAJOR).$(GDAL_MINOR)"
+	$(MAKE) install-docs DESTDIR=$(CURDIR)/debian/tmp \
+		"INST_DOCS=\$$(prefix)/share/doc/libgdal-doc"\
+		"INST_MAN=\$$(prefix)/share/man"
+	$(MAKE) install-man DESTDIR=$(CURDIR)/debian/tmp \
+		"INST_DOCS=\$$(prefix)/share/doc/libgdal-doc"\
+		"INST_MAN=\$$(prefix)/share/man"
+
+	# install python stuff previuosly built and pre-installed
+	cp -a $(CURDIR)/debian/python-tmp/usr/lib/* $(CURDIR)/debian/tmp/usr/lib/.
+	install -o root -g root -d $(CURDIR)/debian/tmp/usr/bin
+	install -o root -g root -m 755 $(CURDIR)/swig/python/scripts/*.py $(CURDIR)/debian/tmp/usr/bin/.
+
+	# java stuff
+	mkdir -p $(CURDIR)/debian/tmp/usr/share/java $(CURDIR)/debian/tmp/usr/lib/jni
+	install -o root -g root -m 644 $(CURDIR)/swig/java/gdal.jar $(CURDIR)/debian/tmp/usr/share/java/.
+	install -o root -g root -m 644 $(CURDIR)/debian/tmp/usr/lib/*jni.so* $(CURDIR)/debian/tmp/usr/lib/jni
+	rm -f $(CURDIR)/debian/tmp/usr/lib/*jni.so*
+
+	# removing useless autogenerated man pages
+	rm -f $(CURDIR)/debian/tmp/usr/share/man/man1/_*_apps_.1
+
+	# removing license file
+	rm -f $(CURDIR)/debian/tmp/usr/share/gdal/$(GDAL_MAJOR).$(GDAL_MINOR)/LICENSE.TXT
+
+	# removing la file
+	rm -f $(CURDIR)/debian/tmp/usr/lib/libgdal.la
+
+	# Remove doxygen jquery.js copy in favor of libjs-jquery
+	rm -f $(CURDIR)/debian/*/usr/share/doc/libgdal-doc/*/jquery.js
+	rm -f $(CURDIR)/debian/*/usr/share/doc/libgdal-perl/*/jquery.js
+
+	# removing embedded rpath in main lib
+	-find $(CURDIR)/debian/tmp/usr/lib -type f -name "*.so*" -exec chrpath --delete {} \;
+
+	# copy sample programs for python-gdal
+	install -o root -g root -d $(CURDIR)/debian/tmp/usr/share/doc/python-gdal/examples
+	install -o root -g root -m 755 $(CURDIR)/swig/python/samples/*.py $(CURDIR)/debian/tmp/usr/share/doc/python-gdal/examples/.
+
+override_dh_install:
+	dh_install --autodest --list-missing
+
+override_dh_installchangelogs:
+	dh_installchangelogs NEWS
+
+override_dh_installdocs:
+	dh_installdocs
+
+	# Remove autogenerated Doxygen files
+	rm -f $(CURDIR)/debian/*/usr/share/doc/libgdal-perl/*/*.md5
+
+override_dh_python2:
+	dh_python2 -X.info -ppython-gdal
+	dh_numpy -ppython-gdal
+
+override_dh_python3:
+	dh_python3 -X.info -ppython3-gdal
+	dh_numpy3 -ppython3-gdal
+
+override_dh_makeshlibs:
+	# Forces failure ignoring to collect new symbols on all archs
+	dh_makeshlibs -Xlibgdal-java -- -v$(UPSTREAM_VERSION) -c0
+	# Forces failure when symbols change
+	#dh_makeshlibs -Xlibgdal-java -- -v$(UPSTREAM_VERSION)
+
+override_dh_shlibdeps:
+	dh_shlibdeps -L libgdal20 -l debian/libgdal20/usr/lib
+
+get-orig-source:
+	uscan --verbose --force-download
+

@@ -1,0 +1,3 @@
+# False positive on: "(319) 369-3131"
+gdal-data: copyright-year-in-future 3131 *
+

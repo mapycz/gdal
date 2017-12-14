@@ -1,0 +1,16 @@
+Description: Fix path to default JVM.
+Bug-Debian: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=628022
+Author: Ezequiel Lara Gómez <ezequiel.lara@yahoo.es>
+Last-Update: 2013-07-01
+Forwarded: not-needed
+
+--- a/swig/java/java.opt
++++ b/swig/java/java.opt
+@@ -3,6 +3,7 @@
+ #JAVA_HOME = "C:\Program Files\Java\jdk1.6.0_16"
+ #JAVA_HOME = /usr/lib/jvm/java-6-openjdk/
+ #JAVA_HOME = /usr/lib/jvm/java-7-openjdk-amd64/
++JAVA_HOME = /usr/lib/jvm/default-java/
+ JAVADOC=$(JAVA_HOME)/bin/javadoc
+ JAVAC=$(JAVA_HOME)/bin/javac
+ JAVA=$(JAVA_HOME)/bin/java

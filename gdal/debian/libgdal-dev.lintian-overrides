@@ -1,0 +1,6 @@
+# Man pages are automatically generated with sphinx.
+libgdal-dev: hyphen-used-as-minus-sign
+
+# False positive on: "(319) 369-3131"
+libgdal-dev: copyright-year-in-future 3131 *
+

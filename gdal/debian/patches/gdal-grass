@@ -1,0 +1,29 @@
+Description: Add support for building the libgdal-grass plugin.
+Bug-Debian: http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=544978
+Author: Francesco Paolo Lovergine <frankie@debian.org>
+Last-Update: 2009-09-08
+Forwarded: not-needed
+
+--- a/frmts/grass/GNUmakefile
++++ b/frmts/grass/GNUmakefile
+@@ -21,11 +21,13 @@ clean:
+ install-obj:	$(O_OBJ:.o=.$(OBJ_EXT))
+ 
+ dist:
+-	cp -r pkg gdal-grass-$(GDAL_VER)
+-	rm -rf gdal-grass-$(GDAL_VER)/.svn
+-	cp grass57dataset.cpp gdal-grass-$(GDAL_VER)
+-	cp ../../ogr/ogrsf_frmts/grass/*.cpp gdal-grass-$(GDAL_VER)
+-	cp ../../ogr/ogrsf_frmts/grass/*.h gdal-grass-$(GDAL_VER)
+-	tar czvf gdal-grass-$(GDAL_VER).tar.gz ./gdal-grass-$(GDAL_VER)
+-	rm -rf gdal-grass-$(GDAL_VER)
++	cp -r pkg libgdal-grass-$(GDAL_VER)
++	rm -rf libgdal-grass-$(GDAL_VER)/.svn
++	cp grass57dataset.cpp libgdal-grass-$(GDAL_VER)
++	cp ../../ogr/ogrsf_frmts/grass/*.cpp libgdal-grass-$(GDAL_VER)
++	cp ../../ogr/ogrsf_frmts/grass/*.h libgdal-grass-$(GDAL_VER)
++	# Adding VERSION to distribution
++	cp ../../VERSION libgdal-grass-$(GDAL_VER)
++	tar czvf libgdal-grass-$(GDAL_VER).tar.gz ./libgdal-grass-$(GDAL_VER)
++	rm -rf libgdal-grass-$(GDAL_VER)
+ 

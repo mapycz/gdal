@@ -1,0 +1,8 @@
+Document: gdal-ogr
+Title: GDAL/OGR Documentation
+Abstract: This manual describes the GDAL/OGR APIs and associated utilities.
+Section: Science/Geoscience
+
+Format: HTML
+Index: /usr/share/doc/libgdal-doc/gdal/index.html
+Files: /usr/share/doc/libgdal-doc/gdal/*.html

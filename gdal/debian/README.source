@@ -1,0 +1,72 @@
+GDAL source for Debian
+----------------------
+
+This package uses quilt to manage all modifications to the upstream
+source. Changes are stored in the source package as diffs in
+debian/patches and applied during the build.
+
+To get detailed instructions on how to apply the series of patches
+and modify them, please read /usr/share/doc/quilt/README.source.
+
+Most of applied patches are due to Debian Policy requirements and
+the need of avoiding hidden breakages at every new release, due
+to ABI changes in the public C++ interface. This is the reason
+to embed versions within package and library names.
+
+Note that debian/rules includes three targets (gdal-{grass,ecw,mrsid})
+to autogenerate Grass/ECW/MrSID external plugins, which are coherent
+with the plain package provided in Debian. The only plugin which 
+is supported upstream is the Grass one. Do not bother upstream 
+with bugs or requests about the other ones.
+
+GDAL symbols and versioning
+---------------------------
+
+Facts:
+
+ - the C interface is considered stable, but it adds new functions at every
+   new release.
+ - the C++ interface is considered unstable and adds/removes/changes methods
+   at every new minor/major release. That implies both API/ABI changes at
+   every new release, possibly.
+ - both C and C++ APIs coexists in the same library with a unique SONAME (the
+   C one).
+ - the only official API that should be used by all programs is the C one.
+   Programs using the C++ ABI will depend on the virtual ABI package provided
+   by the libgdal package, in addition to the libgdal package itself to track
+   transitions for the C++ ABI breakage when the SONAME doesn't change.
+
+So:
+
+ - Use and maintain a single arch-indep C-only symbol file as libgdal*.symbols.common
+   and an arch-dep C++ demangled symbol file for each arch. They are expected to 
+   change at every new upstream release, but can be used to do general checks
+   on possible API/ABI violations. Files can be updated by running
+   dpkg-gensymbols on each build box, which is already done by dh_makeshlibs.
+
+   To do that at each upgrade the following procedure is suggested:
+        - do a an experimental upload with old symbol files and force 
+          ignoring of symbol changes (-c0 arg in dh_makeshlibs).
+        - collect all resulting shlib on all architectures.
+        - run manually dpkg-gensymbols to collect differences and check
+          that all is ok. If not, solve the situation in a creative manner :)
+
+          wget http://ftp.it.debian.org/debian/pool/main/g/gdal/libgdal1_<ver>_armel.deb
+          dpkg --extract libgdal1_<ver>_armel.deb /tmp
+          dpkg-gensymbols -plibgdal1 -aarmel -v<upstream_ver> \
+            -Idebian/libgdal1.symbols.armel -O/tmp/libgdal1.symbols.armel \
+            -e/tmp/usr/lib/libgdal.so.1.16.0
+
+        - update symbol files to ignore uninfluent changes in C++ API on
+          all archs. You will need c++filt to demangle C++ symbols and
+          a bit of vi/sed magics.
+        - re-upload in unstable if possible with new symbols and after
+          removing the -c0 arg.
+
+    You can use the gdal-symbols.pl script to assist with symbols file updates.
+    It automates most of the work required to collect symbols for all
+    architectures using packages downloaded from snapshot.debian.org,
+    and optionally update the current symbols file with the newly generated
+    ones.
+
+ -- Francesco Paolo Lovergine <frankie@debian.org>  Thu, 23 Feb 2012 22:45:56 +0200

@@ -1,0 +1,6 @@
+# False positive on: {136, "Socialist Republic of Viet Nam"},
+libgdal20: spelling-error-in-binary * Nam Name
+
+# False positive on: "(319) 369-3131"
+libgdal20: copyright-year-in-future 3131 *
+

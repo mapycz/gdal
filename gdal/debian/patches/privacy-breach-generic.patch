@@ -1,0 +1,29 @@
+Description: Don't embedded external images.
+Author: Bas Couwenberg <sebastic@debian.org>
+Forwarded: not-needed
+
+--- a/frmts/wms/frmt_wms.html
++++ b/frmts/wms/frmt_wms.html
+@@ -432,19 +432,19 @@ dimension and the number of resolutions.
+ 	tile size of the cache. The following example is a sample set up for
+ 	a 19-level "Global Profile" WMS-C cache.
+ 	<pre>gdal_translate -of PNG -outsize 500 250 metacarta_wmsc.xml metacarta_wmsc.png</pre>
+-	<img src="http://sydney.freeearthfoundation.com/gdalwms/metacarta_wmsc.png" alt="example output">
++	<a href="http://sydney.freeearthfoundation.com/gdalwms/metacarta_wmsc.png">example output</a>
+     </p></li>
+ 
+     <li><p>
+ 	<a href="frmt_wms_tileservice_bmng.xml">tileservice_bmng.xml</a> - TileService, Blue Marble NG (January)<br>
+ 	<pre>gdal_translate -of JPEG -outsize 500 250 tileservice_bmng.xml tileservice_bmng.jpg</pre>
+-	<img src="http://sydney.freeearthfoundation.com/gdalwms/tileservice_bmng.jpg" alt="example output">
++	<a href="http://sydney.freeearthfoundation.com/gdalwms/tileservice_bmng.jpg">example output</a>
+     </p></li>
+ 
+     <li><p>
+ 	<a href="frmt_wms_tileservice_nysdop2004.xml">tileservice_nysdop2004.xml</a> - TileService, NYSDOP 2004<br>
+ 	<pre>gdal_translate -of JPEG -projwin -73.687030 41.262680 -73.686359 41.262345 -outsize 500 250 tileservice_nysdop2004.xml tileservice_nysdop2004.jpg</pre>
+-	<img src="http://sydney.freeearthfoundation.com/gdalwms/tileservice_nysdop2004.jpg" alt="example output">
++	<a href="http://sydney.freeearthfoundation.com/gdalwms/tileservice_nysdop2004.jpg">example output</a>
+     </p></li>
+ 
+     <li><p>

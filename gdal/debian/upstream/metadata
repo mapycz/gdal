@@ -1,0 +1,8 @@
+---
+Bug-Database: https://trac.osgeo.org/gdal/report
+#Bug-Submit: https://trac.osgeo.org/gdal/newticket
+Contact: The GDAL/OGR project team, Frank Warmerdam <warmerdam@pobox.com>
+Name: GDAL
+Registration: https://www.osgeo.org/cgi-bin/ldap_create_user.py
+Repository: https://svn.osgeo.org/gdal/
+Repository-Browse: https://trac.osgeo.org/gdal/browser

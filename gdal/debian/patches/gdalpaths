@@ -1,0 +1,27 @@
+Description: Install GDAL plugins in version specific subdirectory.
+Author: Francesco Paolo Lovergine <frankie@debian.org>
+Last-Update: 2013-07-01
+Forwarded: not-needed
+
+--- a/gcore/gdaldrivermanager.cpp
++++ b/gcore/gdaldrivermanager.cpp
+@@ -740,7 +740,7 @@ void GDALDriverManager::AutoLoadDrivers(
+     #ifdef MACOSX_FRAMEWORK
+                                         GDAL_PREFIX "/PlugIns");
+     #else
+-                                        GDAL_PREFIX "/lib/gdalplugins" );
++                                        GDAL_PREFIX "/lib/gdalplugins/2.2" );
+     #endif
+ #else
+         char szExecPath[1024];
+--- a/port/cpl_findfile.cpp
++++ b/port/cpl_findfile.cpp
+@@ -118,7 +118,7 @@ static FindFileTLS* CPLFinderInit()
+   #ifdef MACOSX_FRAMEWORK
+             CPLPushFinderLocation( GDAL_PREFIX "/Resources/gdal" );
+   #else
+-            CPLPushFinderLocation( GDAL_PREFIX "/share/gdal" );
++            CPLPushFinderLocation( GDAL_PREFIX "/share/gdal/2.2" );
+   #endif
+ #endif
+         }

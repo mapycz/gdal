@@ -1,0 +1,9 @@
+Debian maintainers TODO list
+----------------------------
+
+* C# binding needs probably to be investigated. It is currently not too stabilized.
+  Tcl/Tk binding could be also considered as external project, but its status needs
+  to be checked as well. I would avoid both PHP and Java bindings because not yet
+  mature.
+
+ -- Francesco Paolo Lovergine <frankie@debian.org>  Fri Mar 14 14:34:05 CET 2008

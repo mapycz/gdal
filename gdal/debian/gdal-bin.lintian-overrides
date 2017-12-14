@@ -1,0 +1,12 @@
+# Man pages are automatically generated with sphinx.
+gdal-bin: hyphen-used-as-minus-sign
+gdal-bin: manpage-has-errors-from-man
+gdal-bin: binary-without-manpage
+
+# Breaks for python-gdal vs gdal-bin due to gdal_retile.1 collision
+# in pre-1.10 versions distributed in experimental. Just for safety.
+gdal-bin: package-relation-with-self breaks: gdal-bin (<< 1.10.0-0~)
+
+# False positive on: "(319) 369-3131"
+gdal-bin: copyright-year-in-future 3131 *
+

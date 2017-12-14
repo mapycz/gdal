@@ -1,0 +1,10 @@
+# Man pages are automatically generated with sphinx.
+python-gdal: hyphen-used-as-minus-sign 
+python-gdal: binary-without-manpage
+
+# QGIS plugins rely on .py extension, see: http://hub.qgis.org/issues/9924
+python-gdal: script-with-language-extension usr/bin/*.py
+
+# False positive on: "(319) 369-3131"
+python-gdal: copyright-year-in-future 3131 *
+

@@ -1,0 +1,15 @@
+Description: Don't embedded external logo images.
+Author: Bas Couwenberg <sebastic@debian.org>
+Forwarded: not-needed
+
+--- a/doc/ru/index_ru.dox
++++ b/doc/ru/index_ru.dox
+@@ -123,7 +123,7 @@ or <a href="http://home.gdal.org/project
+ <table border="0" cellspacing="4" cellpadding="4">
+ 
+ <tr><td><a href="http://2016.foss4g.org/">
+-<img src="http://wiki.osgeo.org/images/f/ff/Foss4g2016_logo_squared.png" alt="FOSS4G 2016" border="0">
++FOSS4G 2016
+ </a></td>
+ 
+ <td><a href="http://2016.foss4g.org">FOSS4G 2016</a> основная ежегодная
