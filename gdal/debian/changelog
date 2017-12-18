@@ -1,0 +1,6 @@
+szn-gdal (2.3.0~1) Seznam; urgency=medium
+
+  * 2.3.0 upstream
+  * Enabled mmaping of compressed Tiffs
+
+ -- Jiri Drbalek <jiri.drbalek@firma.seznam.cz>  Wed, 26 Apr 2017 12:35:20 +0000

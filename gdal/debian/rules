@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+#export DH_VERBOSE=1
+
+override_dh_auto_configure:
+	./configure --prefix=/opt/szn/gdal
+
+override_dh_auto_clean:
+	# disabled
+
+%:
+	dh $@ --parallel
