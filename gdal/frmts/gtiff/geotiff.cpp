@@ -2257,18 +2257,6 @@ int GTiffDataset::VirtualMemIO( GDALRWFlag eRWFlag,
     if( !SetDirectory() )
         return CE_Failure;
 
-    const GDALDataType eDataType = GetRasterBand(1)->GetRasterDataType();
-    const int nDTSizeBits = GDALGetDataTypeSizeBits(eDataType);
-    if( !(nCompression == COMPRESSION_NONE &&
-        (nPhotometric == PHOTOMETRIC_MINISBLACK ||
-        nPhotometric == PHOTOMETRIC_RGB ||
-        nPhotometric == PHOTOMETRIC_PALETTE) &&
-        nBitsPerSample == nDTSizeBits) )
-    {
-        eVirtualMemIOUsage = VIRTUAL_MEM_IO_NO;
-        return -1;
-    }
-
     size_t nMappingSize = 0;
     GByte* pabySrcData = NULL;
     if( STARTS_WITH(osFilename, "/vsimem/") )
@@ -2333,6 +2321,8 @@ int GTiffDataset::VirtualMemIO( GDALRWFlag eRWFlag,
 
     if( TIFFIsByteSwapped(hTIFF) && m_pTempBufferForCommonDirectIO == NULL )
     {
+        const GDALDataType eDataType = GetRasterBand(1)->GetRasterDataType();
+        const int nDTSizeBits = GDALGetDataTypeSizeBits(eDataType);
         const int nDTSize = nDTSizeBits / 8;
         m_nTempBufferForCommonDirectIOSize =
             static_cast<size_t>(nBlockXSize * nDTSize *
