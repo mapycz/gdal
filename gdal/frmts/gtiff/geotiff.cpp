@@ -2259,8 +2259,7 @@ int GTiffDataset::VirtualMemIO( GDALRWFlag eRWFlag,
 
     const GDALDataType eDataType = GetRasterBand(1)->GetRasterDataType();
     const int nDTSizeBits = GDALGetDataTypeSizeBits(eDataType);
-    if( !(nCompression == COMPRESSION_NONE &&
-        (nPhotometric == PHOTOMETRIC_MINISBLACK ||
+    if( !((nPhotometric == PHOTOMETRIC_MINISBLACK ||
         nPhotometric == PHOTOMETRIC_RGB ||
         nPhotometric == PHOTOMETRIC_PALETTE) &&
         nBitsPerSample == nDTSizeBits) )
