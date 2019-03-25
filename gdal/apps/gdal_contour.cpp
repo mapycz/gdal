@@ -57,9 +57,11 @@ static void Usage(const char* pszErrorMsg = NULL)
     printf(
         "Usage: gdal_contour [-b <band>] [-a <attribute_name>] [-3d] [-inodata]\n"
         "                    [-snodata n] [-f <formatname>] [-i <interval>]\n"
-        "                    [-f <formatname>] [[-dsco NAME=VALUE] ...] [[-lco NAME=VALUE] ...]\n"
-        "                    [-off <offset>] [-fl <level> <level>...]\n"
-        "                    [-nln <outlayername>] [-q]\n"
+        "                    [-f <formatname>] [[-dsco NAME=VALUE] ...] [[-lco NAME=VALUE] ...]\n"   
+        "                    [-off <offset>] [-fl <level> <level>...]\n" 
+        "                    [-nln <outlayername>] [-q] [-min_points <min_points>]\n"
+        "                    [-smooth_cycles <smooth_cycles] [-look_ahead <look_ahead]\n"
+        "                    [-smooth_slide <slide>] [-loop_support <loop_support>]\n"
         "                    <src_filename> <dst_filename>\n" );
 
     if( pszErrorMsg != NULL )
@@ -92,6 +94,8 @@ int main( int argc, char ** argv )
     int    nFixedLevelCount = 0;
     const char *pszNewLayerName = "contour";
     int bQuiet = FALSE;
+    int nSmoothCycles = 0, nLookAhead = 7, nMinPoints = -1, bLoopSupport = FALSE;
+    double dfSlide = 0.5;
     GDALProgressFunc pfnProgress = NULL;
 
     /* Check that we are running against at least GDAL 1.4 */
@@ -190,6 +194,30 @@ int main( int argc, char ** argv )
         {
             bQuiet = TRUE;
         }
+        else if ( EQUAL(argv[i], "-smooth_cycles") ) 
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nSmoothCycles = atoi(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-look_ahead") ) 
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nLookAhead = atoi(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-smooth_slide") ) 
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            dfSlide = CPLAtof(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-loop") ) 
+        {
+            bLoopSupport = TRUE;
+        }
+        else if ( EQUAL(argv[i], "-min_points") ) 
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nMinPoints = atoi(argv[++i]);
+        }
         else if( pszSrcFilename == NULL )
         {
             pszSrcFilename = argv[i];
@@ -205,6 +233,25 @@ int main( int argc, char ** argv )
     if( dfInterval == 0.0 && nFixedLevelCount == 0 )
     {
         Usage("Neither -i nor -fl are specified.");
+    }
+
+    if( nSmoothCycles > 0 && nLookAhead % 2 == 0 ) 
+    {
+        // Smooth look ahead parameter must be ood.
+        Usage("Smoothing <look_ahead> parameter must be odd.");
+    }
+
+    if ( dfSlide > 1.0 || dfSlide < 0.0 ) 
+    {
+        // Slide must by in interval
+        Usage("Slide must be in interval <0.0 - 1.0).");
+    }
+
+    if( nSmoothCycles > 0 && nMinPoints > 0 && nLookAhead > nMinPoints ) 
+    {
+        // If smooth enabled and min points are sets, min points 
+        // must be at lest as look ahead parameter.
+        nMinPoints = nLookAhead;
     }
 
     if (pszSrcFilename == NULL)
@@ -302,7 +349,8 @@ int main( int argc, char ** argv )
                          (pszElevAttrib == NULL) ? -1 :
                          OGR_FD_GetFieldIndex( OGR_L_GetLayerDefn( hLayer ),
                                                pszElevAttrib ),
-                         pfnProgress, NULL );
+                         nSmoothCycles, nLookAhead, dfSlide, bLoopSupport, 
+                         nMinPoints, pfnProgress, NULL );
 
     OGR_DS_Destroy( hDS );
     GDALClose( hSrcDS );

@@ -309,6 +309,8 @@ GDALContourGenerate( GDALRasterBandH hBand,
                             int nFixedLevelCount, double *padfFixedLevels,
                             int bUseNoData, double dfNoDataValue,
                             void *hLayer, int iIDField, int iElevField,
+                            int nSmoothCycles, int nLookAhead, double dfSlide, 
+                            int bLoopSupport, int nMinPoints, 
                             GDALProgressFunc pfnProgress, void *pProgressArg );
 
 /************************************************************************/

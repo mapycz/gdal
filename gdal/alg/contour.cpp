@@ -74,6 +74,14 @@ public:
     int    MergeCase( double ax0, double ay0, double ax1, double ay1,
                       double bx0, double by0, double bx1, double by1);
     void   PrepareEjection();
+
+    bool   IsClosed();
+    bool   ShouldProcess( int nMinPoints );
+    void   RemovePussies();
+    void   Smooth( int nLookAhead, double dfSlide, int bLoopSupport );
+
+private:
+    int    GetSmoothingIndex(int index, int isLoop);
 };
 
 /************************************************************************/
@@ -123,8 +131,14 @@ class GDALContourGenerator
     double  dfContourInterval;
     double  dfContourOffset;
 
+    int     nMinPoints;
 
-    CPLErr AddSegment( double dfLevel,
+    int     nSmoothCycles;
+    int     nLookAhead;
+    double  dfSlide;
+    int     bLoopSupport;
+
+    CPLErr AddSegment( double dfLevel, 
                        double dfXStart, double dfYStart,
                        double dfXEnd, double dfYEnd, int bLeftHigh );
 
@@ -157,6 +171,14 @@ public:
                                           double dfContourOffsetIn = 0.0 )
         { dfContourInterval = dfContourIntervalIn;
           dfContourOffset = dfContourOffsetIn; }
+
+    void                SetMinPoints( int nMinPoints )
+        { this->nMinPoints = nMinPoints; }
+    void                SetSmoothing( int nSmoothCycles, int nLookAhead, double dfSlide, int bLoopSupport )
+        { this->nSmoothCycles = nSmoothCycles;
+          this->nLookAhead = nLookAhead;
+          this->dfSlide = dfSlide;
+          this->bLoopSupport = bLoopSupport; }
 
     void                SetFixedLevels( int, double * );
     CPLErr              FeedLine( double *padfScanline );
@@ -255,6 +277,11 @@ GDALContourGenerator::GDALContourGenerator( int nWidthIn, int nHeightIn,
     nLevelCount = 0;
     papoLevels = NULL;
     bFixedLevels = FALSE;
+
+    nMinPoints = -1;
+    nLookAhead = -1;
+    dfSlide = 0.0;
+    bLoopSupport = FALSE;
 }
 
 /************************************************************************/
@@ -889,13 +916,21 @@ CPLErr GDALContourGenerator::EjectContours( int bOnlyUnused )
             // If we didn't merge it, then eject (write) it out.
             if( iC2 == poLevel->GetContourCount() )
             {
-                if( pfnWriter != NULL )
+                if( pfnWriter != NULL && poTarget->ShouldProcess(this->nMinPoints) )
                 {
                     // If direction is wrong, then reverse before ejecting.
                     poTarget->PrepareEjection();
 
-                    eErr = pfnWriter( poTarget->dfLevel, poTarget->nPoints,
-                                      poTarget->padfX, poTarget->padfY,
+                    // Remove pussies
+                    poTarget->RemovePussies();
+
+                    // If smooting is enabled
+                    for( int iSC = 0; iSC < this->nSmoothCycles; iSC++ ) {
+                        poTarget->Smooth(nLookAhead, dfSlide, bLoopSupport);
+                    }
+
+                    eErr = pfnWriter( poTarget->dfLevel, poTarget->nPoints, 
+                                      poTarget->padfX, poTarget->padfY, 
                                       pWriterCBData );
                 }
             }
@@ -1459,6 +1494,130 @@ void GDALContourItem::PrepareEjection()
     }
 }
 
+/************************************************************************/
+/*                          Smooth()                                    */
+/************************************************************************/
+
+bool GDALContourItem::IsClosed()
+{
+    return this->padfX[0] == this->padfX[this->nPoints - 1] &&
+           this->padfY[0] == this->padfY[this->nPoints - 1];
+}
+
+bool GDALContourItem::ShouldProcess( int nMinPoints )
+{
+    if (nMinPoints <= 1 || !this->IsClosed()) {
+        return true;
+    } 
+
+    return (this->nPoints >= nMinPoints);
+}
+
+void GDALContourItem::RemovePussies() 
+{
+    if (this->IsClosed() || this->nPoints < 4) {
+        return;
+    }
+
+    for (int i = 1; i < this->nPoints - 1; i++) {
+        this->padfX[i-1] = this->padfX[i];
+        this->padfY[i-1] = this->padfY[i];
+    }
+
+    this->nPoints -= 2;
+    this->padfX = (double *) CPLRealloc(this->padfX,sizeof(double) * (this->nPoints));
+    this->padfY = (double *) CPLRealloc(this->padfY,sizeof(double) * (this->nPoints));
+}
+
+int GDALContourItem::GetSmoothingIndex( int index, int isLoop ) 
+{
+    if (isLoop) {
+        while(index >= this->nPoints - 1) {
+            index -= this->nPoints - 1;
+        }
+    }
+
+    return index;
+}
+
+void GDALContourItem::Smooth( int nLookAhead, double dfSlide, int bLoopSupport )
+{
+    int n, i, half;
+    double sc;
+    double pX, pY;
+    double *resX = NULL;
+    double *resY = NULL;
+    int isLoop, count;
+
+    isLoop = FALSE;
+    n = this->nPoints;
+    half = nLookAhead / 2;
+    
+    count = n - half;
+
+    // We are in loop and has loop support?
+    if( bLoopSupport && this->IsClosed() ) {
+        isLoop = TRUE;
+        count = n + half;
+    }
+
+    // Window is too wide
+    if( nLookAhead >= n || nLookAhead < 2 ) {
+        return;
+    }
+
+    resX = (double *) CPLRealloc(resX,sizeof(double) * (n + half));
+    resY = (double *) CPLRealloc(resY,sizeof(double) * (n + half));
+    sc = (double)1.0 / (double)nLookAhead;
+
+    pX = this->padfX[0];
+    pY = this->padfY[0];
+    for( i = 1; i < nLookAhead; i++ ) {
+        pX += this->padfX[i];
+        pY += this->padfY[i];
+    }
+
+
+    int index = 0;
+    for( i = half; i < count; i++ ) {
+        index = this->GetSmoothingIndex(i, isLoop);
+        resX[i] = (this->padfX[index] * (1.0 - dfSlide)) + (pX * sc * dfSlide);
+        resY[i] = (this->padfY[index] * (1.0 - dfSlide)) + (pY * sc * dfSlide) ;
+        
+        if( (i + half + 1 < n) || isLoop ) {
+            index = this->GetSmoothingIndex(i - half, isLoop);
+            pX = pX - this->padfX[index];
+            pY = pY - this->padfY[index];
+
+            index = this->GetSmoothingIndex(i + half + 1, isLoop);
+            pX = pX + this->padfX[index];
+            pY = pY + this->padfY[index];
+        }
+    }
+
+
+    if( isLoop ) {
+        for( i = 0; i < half; i++ ) {
+            this->padfX[i] = resX[n + i - 1];
+            this->padfY[i] = resY[n + i - 1];
+        }
+        for( i = half; i < n; i++ ) {
+            this->padfX[i] = resX[i];
+            this->padfY[i] = resY[i];
+        }
+    }
+    else {
+        for( i = half; i < n - half; i++ ) {
+            this->padfX[i] = resX[i];
+            this->padfY[i] = resY[i];
+        }
+    }
+
+    CPLFree( resX );
+    CPLFree( resY );
+    return;
+}
+
 
 /************************************************************************/
 /* ==================================================================== */
@@ -1641,6 +1800,20 @@ an averaged value from the two nearby points (in this case (12+3+5)/3).
  * @param iElevField If not -1 this will be used as a field index to indicate
  * where the elevation value of the contour should be written.
  *
+ * @param nLookAhead If not -1 smoothing method will be applied to all
+ * contours. This value means number of points in look ahead window in
+ * sliding averaging algorithm. This value must be odd.
+ *
+ * @param dfSlide Amount of contour slide. This parameter is usefull only
+ * when nLookAhead is not -1 (i.e. smoothing is enabled).
+ *
+ * @param bLoopSupport This parameter is usefull only when nLookAhead is 
+ * not -1 (i.e. smoothing is enabled). If loop support is enabled, sliding
+ * will continue on end of contour.
+ * 
+ * @param nMinPoints Minimum points within contour, all controus with less
+ * than this value will be discarded. -1 means all contours will be saved.
+ *
  * @param pfnProgress A GDALProgressFunc that may be used to report progress
  * to the user, or to interrupt the algorithm.  May be NULL if not required.
  *
@@ -1654,6 +1827,8 @@ CPLErr GDALContourGenerate( GDALRasterBandH hBand,
                             int nFixedLevelCount, double *padfFixedLevels,
                             int bUseNoData, double dfNoDataValue,
                             void *hLayer, int iIDField, int iElevField,
+                            int nSmoothCycles, int nLookAhead, double dfSlide, 
+                            int bLoopSupport, int nMinPoints, 
                             GDALProgressFunc pfnProgress, void *pProgressArg )
 
 {
@@ -1710,6 +1885,14 @@ CPLErr GDALContourGenerate( GDALRasterBandH hBand,
 
     if( bUseNoData )
         oCG.SetNoData( dfNoDataValue );
+
+    if( nMinPoints > 0) {
+        oCG.SetMinPoints(nMinPoints);
+    }
+
+    if( nSmoothCycles > 0 ) {
+        oCG.SetSmoothing(nSmoothCycles, nLookAhead, dfSlide, bLoopSupport);
+    }
 
 /* -------------------------------------------------------------------- */
 /*      Feed the data into the contour generator.                       */
