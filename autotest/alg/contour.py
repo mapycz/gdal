@@ -268,12 +268,58 @@ def test_contour_3():
     ogr_ds.ReleaseResultSet(lyr)
     ogr_ds.Destroy()
 
+def test_contour_smooth():
+
+    try:
+        os.remove('tmp/contour_smooth.shp')
+    except OSError:
+        pass
+    try:
+        os.remove('tmp/contour_smooth.dbf')
+    except OSError:
+        pass
+    try:
+        os.remove('tmp/contour_smooth.shx')
+    except OSError:
+        pass
+
+    ogr_ds = ogr.GetDriverByName('ESRI Shapefile').CreateDataSource('tmp/contour_smooth.shp')
+    ogr_lyr = ogr_ds.CreateLayer('contour', geom_type=ogr.wkbLineString)
+    field_defn = ogr.FieldDefn('ID', ogr.OFTInteger)
+    ogr_lyr.CreateField(field_defn)
+    field_defn = ogr.FieldDefn('elev', ogr.OFTReal)
+    ogr_lyr.CreateField(field_defn)
+
+    ds = gdal.Open('data/contour_in.tif')
+
+    gdal.ContourGenerateEx(ds.GetRasterBand(1), ogr_lyr, options=[
+        "LEVEL_INTERVAL=10",
+        "ID_FIELD=0",
+        "ELEV_FIELD=1",
+        "ELEV_SMOOTH_CYCLES=2",
+        "ELEV_SMOOTH_LOOP_SUPPORT=YES",
+        "ELEV_SMOOTH_LOOK_AHEAD=7",
+        "ELEV_SMOOTH_SLIDE=1.0",
+        "ELEV_SMOOTH_MIN_POINTS=15",
+    ])
+
+    ogr_lyr.SetAttributeFilter('elev = 330')
+    assert ogr_lyr.GetFeatureCount() == 1
+    f = ogr_lyr.GetNextFeature()
+    assert ogrtest.check_feature_geometry(f, 'LINESTRING (4.90136055442183 11.0359573257531,4.35374145578244 11.1287658818269,3.86734684693897 11.113702714723,3.48979577142883 10.9829932891156,3.25510183877584 10.7604471105927,3.17346917653093 10.4494655579203,3.27551000408191 10.0932944957726,3.54081613775534 9.71331389961126,3.93877534285734 9.33333330344996,4.45918352755118 8.95481042711375,5.06122435306138 8.60349843513127,5.72448966836749 8.27259461564636,6.4285712897961 7.9689016805152,7.14285697244922 7.6652087555881,7.83673449183703 7.35471312657936,8.5204079448983 7.0442174907679,9.20408139795956 6.74829913075817,9.86734672857176 6.47278893401374,10.5102038959187 6.21768691530624,11.0918365775513 6.01020394421778,11.5918366265308 5.87414954237131,12.0102040224491 5.80952372896018,12.295918367347 5.8265305822157,12.4183674061224 5.91496600777444,12.377551110204 6.07278918843522,12.1530613517005 6.31224500719125,11.8061226054419 6.58571443649149,11.3435375904759 6.90000018649144,10.7993199224487 7.26530630553909,10.2244899738092 7.65102058104933,9.62925186190452 8.06297391370243,9.03401375408142 8.49261432118546,8.45918380612228 8.92225473275012,7.88435386224476 9.37230330145765,7.31632663945567 9.80874643090375,6.72789125340128 10.2043732542274,6.11904769387751 10.5591837510204,5.50000004251702 10.8411079533527,4.90136055442183 11.0359573257531)', 0.01) == 0
+
+    ogr_lyr.SetAttributeFilter('elev = 320')
+    assert ogr_lyr.GetFeatureCount() == 2
+
+    ogr_ds.Destroy()
+
 ###############################################################################
 # Cleanup
 
 
 def test_contour_cleanup():
     ogr.GetDriverByName('ESRI Shapefile').DeleteDataSource('tmp/contour.shp')
+    ogr.GetDriverByName('ESRI Shapefile').DeleteDataSource('tmp/contour_smooth.shp')
     try:
         os.remove('tmp/gdal_contour.tif')
     except OSError:

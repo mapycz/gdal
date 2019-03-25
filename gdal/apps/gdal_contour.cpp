@@ -61,7 +61,9 @@ static void Usage(const char* pszErrorMsg = nullptr)
         "                    [-3d] [-inodata] [-snodata n] [-f <formatname>] [-i <interval>]\n"
         "                    [[-dsco NAME=VALUE] ...] [[-lco NAME=VALUE] ...]\n"
         "                    [-off <offset>] [-fl <level> <level>...] [-e <exp_base>]\n"
-        "                    [-nln <outlayername>] [-q] [-p]\n"
+        "                    [-nln <outlayername>] [-q] [-min_points <min_points>]\n"
+        "                    [-smooth_cycles <smooth_cycles] [-look_ahead <look_ahead]\n"
+        "                    [-smooth_slide <slide>] [-loop]\n"
         "                    <src_filename> <dst_filename>\n" );
 
     if( pszErrorMsg != nullptr )
@@ -115,6 +117,9 @@ MAIN_START(argc, argv)
     int nFixedLevelCount = 0;
     const char *pszNewLayerName = "contour";
     bool bQuiet = false;
+    int nSmoothCycles = 0, nLookAhead = 7, nMinPoints = 0;
+    bool bLoopSupport = false;
+    double dfSlide = 0.5;
     GDALProgressFunc pfnProgress = nullptr;
     bool bPolygonize = false;
 
@@ -237,6 +242,30 @@ MAIN_START(argc, argv)
         {
             bQuiet = TRUE;
         }
+        else if ( EQUAL(argv[i], "-smooth_cycles") )
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nSmoothCycles = atoi(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-look_ahead") )
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nLookAhead = atoi(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-smooth_slide") )
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            dfSlide = CPLAtof(argv[++i]);
+        }
+        else if ( EQUAL(argv[i], "-loop") )
+        {
+            bLoopSupport = true;
+        }
+        else if ( EQUAL(argv[i], "-min_points") )
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+            nMinPoints = atoi(argv[++i]);
+        }
         else if( pszSrcFilename == nullptr )
         {
             pszSrcFilename = argv[i];
@@ -252,6 +281,25 @@ MAIN_START(argc, argv)
     if( dfInterval == 0.0 && nFixedLevelCount == 0 && dfExpBase == 0.0 )
     {
         Usage("Neither -i nor -fl nor -e are specified.");
+    }
+
+    if( nSmoothCycles > 0 && nLookAhead % 2 == 0 )
+    {
+        // Smooth look ahead parameter must be ood.
+        Usage("Smoothing <look_ahead> parameter must be odd.");
+    }
+
+    if ( dfSlide > 1.0 || dfSlide < 0.0 )
+    {
+        // Slide must by in interval
+        Usage("Slide must be in interval <0.0 - 1.0).");
+    }
+
+    if( nSmoothCycles > 0 && nMinPoints > 0 && nLookAhead > nMinPoints )
+    {
+        // If smooth enabled and min points are sets, min points
+        // must be at lest as look ahead parameter.
+        nMinPoints = nLookAhead;
     }
 
     if (pszSrcFilename == nullptr)
@@ -429,6 +477,15 @@ MAIN_START(argc, argv)
     }
     if ( bPolygonize ) {
         options = CSLAppendPrintf( options, "POLYGONIZE=YES" );
+    }
+    if (nSmoothCycles) {
+        options = CSLAppendPrintf( options, "ELEV_SMOOTH_CYCLES=%d", nSmoothCycles );
+        options = CSLAppendPrintf( options, "ELEV_SMOOTH_LOOK_AHEAD=%d", nLookAhead );
+        options = CSLAppendPrintf( options, "ELEV_SMOOTH_SLIDE=%f", dfSlide );
+        options = CSLAppendPrintf( options, "ELEV_SMOOTH_MIN_POINTS=%d", nMinPoints );
+        if (bLoopSupport) {
+            options = CSLAppendPrintf( options, "ELEV_SMOOTH_LOOP_SUPPORT=YES" );
+        }
     }
 
     CPLErr eErr = GDALContourGenerateEx( hBand, hLayer, options, pfnProgress, nullptr );

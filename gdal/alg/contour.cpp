@@ -34,6 +34,7 @@
 #include "utility.h"
 #include "contour_generator.h"
 #include "segment_merger.h"
+#include "smooth.h"
 
 #include "gdal.h"
 #include "gdal_alg.h"
@@ -517,6 +518,28 @@ an averaged value from the two nearby points (in this case (12+3+5)/3).
  *
  * If YES, contour polygons will be created, rather than polygon lines.
  *
+ *   ELEV_SMOOTH_CYCLES=d
+ *
+ * Number of passes through smoothing.
+ *
+ *   ELEV_SMOOTH_LOOK_AHEAD=d
+ *
+ * This value means number of points in look ahead window in
+ * sliding averaging algorithm. This value must be odd.
+ *
+ *   ELEV_SMOOTH_SLIDE=f
+ *
+ * Amount of contour slide. This parameter is usefull only
+ * when nLookAhead is not -1 (i.e. smoothing is enabled).
+ *
+ *   ELEV_SMOOTH_LOOP_SUPPORT=YES|NO
+ *
+ * If loop support is enabled, sliding will continue on end of contour.
+ *
+ *   ELEV_SMOOTH_MIN_POINTS=d
+ *
+ * Minimum points within contour, all controus with less
+ * than this value will be discarded. Zero means all contours will be saved.
  *
  * @return CE_None on success or CE_Failure if an error occurs.
  */
@@ -592,6 +615,32 @@ CPLErr GDALContourGenerateEx( GDALRasterBandH hBand, void *hLayer,
 
     bool polygonize = CPLFetchBool( options, "POLYGONIZE", false );
 
+    int elevSmoothCycles = 0;
+    opt = CSLFetchNameValue( options, "ELEV_SMOOTH_CYCLES" );
+    if ( opt ) {
+        elevSmoothCycles = atoi( opt );
+    }
+
+    int elevSmoothLookAhead = 7;
+    opt = CSLFetchNameValue( options, "ELEV_SMOOTH_LOOK_AHEAD" );
+    if ( opt ) {
+        elevSmoothLookAhead = atoi( opt );
+    }
+
+    double elevSmoothSlide = 0.5;
+    opt = CSLFetchNameValue( options, "ELEV_SMOOTH_SLIDE" );
+    if ( opt ) {
+        elevSmoothSlide = CPLAtof( opt );
+    }
+
+    bool elevSmoothLoopSupport = CPLFetchBool( options, "ELEV_SMOOTH_LOOP_SUPPORT", false );
+
+    int elevSmoothMinPoints = 0;
+    opt = CSLFetchNameValue( options, "ELEV_SMOOTH_MIN_POINTS" );
+    if ( opt ) {
+        elevSmoothMinPoints = atoi( opt );
+    }
+
     using namespace marching_squares;
 
     OGRContourWriterInfo oCWI;
@@ -619,21 +668,22 @@ CPLErr GDALContourGenerateEx( GDALRasterBandH hBand, void *hLayer,
             PolygonContourWriter w( &oCWI, GDALGetRasterMinimum( hBand, &bSuccess ) );
             typedef PolygonRingAppender<PolygonContourWriter> RingAppender;
             RingAppender appender( w );
+            Smooth<decltype(appender)> smooth(appender, elevSmoothCycles, elevSmoothLookAhead, elevSmoothMinPoints, elevSmoothLoopSupport, elevSmoothSlide);
             if ( ! fixedLevels.empty() ) {
                 FixedLevelRangeIterator levels( &fixedLevels[0], fixedLevels.size(), GDALGetRasterMaximum( hBand, &bSuccess ) );
-                SegmentMerger<RingAppender, FixedLevelRangeIterator> writer(appender, levels, /* polygonize */ true);
+                SegmentMerger<decltype(smooth), FixedLevelRangeIterator> writer(smooth, levels, /* polygonize */ true);
                 ContourGeneratorFromRaster<decltype(writer), FixedLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
             else if ( expBase > 0.0 ) {
                 ExponentialLevelRangeIterator levels( expBase );
-                SegmentMerger<RingAppender, ExponentialLevelRangeIterator> writer(appender, levels, /* polygonize */ true);
+                SegmentMerger<decltype(smooth), ExponentialLevelRangeIterator> writer(smooth, levels, /* polygonize */ true);
                 ContourGeneratorFromRaster<decltype(writer), ExponentialLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
             else {
                 IntervalLevelRangeIterator levels( contourBase, contourInterval );
-                SegmentMerger<RingAppender, IntervalLevelRangeIterator> writer(appender, levels, /* polygonize */ true);
+                SegmentMerger<decltype(smooth), IntervalLevelRangeIterator> writer(smooth, levels, /* polygonize */ true);
                 ContourGeneratorFromRaster<decltype(writer), IntervalLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
@@ -641,21 +691,22 @@ CPLErr GDALContourGenerateEx( GDALRasterBandH hBand, void *hLayer,
         else
         {
             GDALRingAppender appender(OGRContourWriter, &oCWI);
+            Smooth<decltype(appender)> smooth(appender, elevSmoothCycles, elevSmoothLookAhead, elevSmoothMinPoints, elevSmoothLoopSupport, elevSmoothSlide);
             if ( ! fixedLevels.empty() ) {
                 FixedLevelRangeIterator levels( &fixedLevels[0], fixedLevels.size() );
-                SegmentMerger<GDALRingAppender, FixedLevelRangeIterator> writer(appender, levels, /* polygonize */ false);
+                SegmentMerger<decltype(smooth), FixedLevelRangeIterator> writer(smooth, levels, /* polygonize */ false);
                 ContourGeneratorFromRaster<decltype(writer), FixedLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
             else if ( expBase > 0.0 ) {
                 ExponentialLevelRangeIterator levels( expBase );
-                SegmentMerger<GDALRingAppender, ExponentialLevelRangeIterator> writer(appender, levels, /* polygonize */ false);
+                SegmentMerger<decltype(smooth), ExponentialLevelRangeIterator> writer(smooth, levels, /* polygonize */ false);
                 ContourGeneratorFromRaster<decltype(writer), ExponentialLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
             else {
                 IntervalLevelRangeIterator levels( contourBase, contourInterval );
-                SegmentMerger<GDALRingAppender, IntervalLevelRangeIterator> writer(appender, levels, /* polygonize */ false);
+                SegmentMerger<decltype(smooth), IntervalLevelRangeIterator> writer(smooth, levels, /* polygonize */ false);
                 ContourGeneratorFromRaster<decltype(writer), IntervalLevelRangeIterator> cg( hBand, useNoData, noDataValue, writer, levels );
                 cg.process( pfnProgress, pProgressArg );
             }
