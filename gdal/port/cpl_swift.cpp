@@ -52,13 +52,14 @@ static CPLString g_osLastAuthToken;
 /************************************************************************/
 
 static
-struct curl_slist* GetSwiftHeaders( const CPLString& osAuthToken )
+struct curl_slist* GetSwiftHeaders()
 {
     struct curl_slist *headers=nullptr;
     headers = curl_slist_append(
         headers, "Accept: application/json");
+    const char * osAuthToken = CPLGetConfigOption("SWIFT_AUTH_TOKEN", "");
     headers = curl_slist_append(
-        headers, CPLSPrintf("x-auth-token: %s", osAuthToken.c_str()));
+        headers, CPLSPrintf("x-auth-token: %s", osAuthToken));
     return headers;
 }
 
@@ -66,12 +67,10 @@ struct curl_slist* GetSwiftHeaders( const CPLString& osAuthToken )
 /*                     VSISwiftHandleHelper()                           */
 /************************************************************************/
 VSISwiftHandleHelper::VSISwiftHandleHelper(const CPLString& osStorageURL,
-                                           const CPLString& osAuthToken,
                                            const CPLString& osBucket,
                                            const CPLString& osObjectKey) :
     m_osURL(BuildURL(osStorageURL, osBucket, osObjectKey)),
     m_osStorageURL(osStorageURL),
-    m_osAuthToken(osAuthToken),
     m_osBucket(osBucket),
     m_osObjectKey(osObjectKey)
 {
@@ -89,10 +88,11 @@ VSISwiftHandleHelper::~VSISwiftHandleHelper()
 /*                        GetConfiguration()                            */
 /************************************************************************/
 
-bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL,
-                                            CPLString& osAuthToken)
+bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL)
 {
     osStorageURL = CPLGetConfigOption("SWIFT_STORAGE_URL", "");
+    CPLString osAuthToken;
+
     if( !osStorageURL.empty() )
     {
         osAuthToken = CPLGetConfigOption("SWIFT_AUTH_TOKEN", "");
@@ -179,9 +179,8 @@ VSISwiftHandleHelper* VSISwiftHandleHelper::BuildFromURI( const char* pszURI,
                                                     const char* /*pszFSPrefix*/ )
 {
     CPLString osStorageURL;
-    CPLString osAuthToken;
 
-    if( !GetConfiguration(osStorageURL, osAuthToken) )
+    if( !GetConfiguration(osStorageURL) )
     {
         return nullptr;
     }
@@ -198,7 +197,6 @@ VSISwiftHandleHelper* VSISwiftHandleHelper::BuildFromURI( const char* pszURI,
     }
 
     return new VSISwiftHandleHelper( osStorageURL,
-                                     osAuthToken,
                                      osBucket,
                                      osObjectKey );
 }
@@ -240,7 +238,7 @@ VSISwiftHandleHelper::GetCurlHeaders( const CPLString&,
                                           const void *,
                                           size_t ) const
 {
-    return GetSwiftHeaders( m_osAuthToken );
+    return GetSwiftHeaders();
 }
 
 /************************************************************************/
