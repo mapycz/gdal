@@ -61,6 +61,8 @@ class VSISwiftHandleHelper final: public IVSIS3LikeHandleHelper
                              const CPLString& osObjectKey);
        ~VSISwiftHandleHelper();
 
+        bool Authenticate();
+
         static VSISwiftHandleHelper* BuildFromURI(const char* pszURI,
                                                const char* pszFSPrefix);
 

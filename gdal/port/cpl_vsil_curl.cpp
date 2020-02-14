@@ -1348,6 +1348,18 @@ retry:
         goto retry;
     }
 
+    // Unauthorized => try to authenticate
+    if( response_code == 401 && nRetryCount < m_nMaxRetry )
+    {
+        CPLFree(sWriteFuncData.pBuffer);
+        CPLFree(sWriteFuncHeaderData.pBuffer);
+        curl_easy_cleanup(hCurlHandle);
+        nRetryCount++;
+        if( Authenticate() )
+            goto retry;
+        return std::string();
+    }
+
     CPLString osEffectiveURL;
     {
         char *pszEffectiveURL = nullptr;
