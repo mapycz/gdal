@@ -86,62 +86,15 @@ VSISwiftHandleHelper::~VSISwiftHandleHelper()
 }
 
 /************************************************************************/
-/*                           Authenticate()                             */
+/*                           AuthV1()                         */
 /************************************************************************/
 
-bool VSISwiftHandleHelper::Authenticate()
+bool VSISwiftHandleHelper::AuthV1(CPLString& osStorageURL,
+                                  CPLString& osAuthToken)
 {
-    return false;
-}
-
-/************************************************************************/
-/*                        GetConfiguration()                            */
-/************************************************************************/
-
-bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL,
-                                            CPLString& osAuthToken)
-{
-    osStorageURL = CPLGetConfigOption("SWIFT_STORAGE_URL", "");
-    if( !osStorageURL.empty() )
-    {
-        osAuthToken = CPLGetConfigOption("SWIFT_AUTH_TOKEN", "");
-        if( osAuthToken.empty() )
-        {
-            const char* pszMsg = "Missing SWIFT_AUTH_TOKEN";
-            CPLDebug("SWIFT", "%s", pszMsg);
-            VSIError(VSIE_AWSInvalidCredentials, "%s", pszMsg);
-            return false;
-        }
-        return true;
-    }
-
     CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
     CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
     CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
-    if( osAuthURL.empty() || osUser.empty() || osKey.empty() )
-    {
-        const char* pszMsg = "Missing SWIFT_STORAGE_URL+SWIFT_AUTH_TOKEN or "
-                             "SWIFT_AUTH_V1_URL+SWIFT_USER+SWIFT_KEY "
-                             "configuration options";
-        CPLDebug("SWIFT", "%s", pszMsg);
-        VSIError(VSIE_AWSInvalidCredentials, "%s", pszMsg);
-        return false;
-    }
-
-    // Re-use cached credentials if available
-    {
-        CPLMutexHolder oHolder( &g_hMutex );
-        // coverity[tainted_data]
-        if( osAuthURL == g_osLastAuthURL &&
-            osUser == g_osLastUser &&
-            osKey == g_osLastKey )
-        {
-            osStorageURL = g_osLastStorageURL;
-            osAuthToken = g_osLastAuthToken;
-            return true;
-        }
-    }
-
     char** papszHeaders = CSLSetNameValue(nullptr, "HEADERS",
         CPLSPrintf("X-Auth-User: %s\r\n"
                    "X-Auth-Key: %s",
@@ -177,6 +130,98 @@ bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL,
     }
 
     return true;
+}
+
+/************************************************************************/
+/*                           Authenticate()                             */
+/************************************************************************/
+
+bool VSISwiftHandleHelper::Authenticate()
+{
+    CPLString osAuthV1URL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
+    if( !osAuthV1URL.empty() )
+    {
+        return AuthV1(m_osStorageURL, m_osAuthToken);
+    }
+
+    return false;
+}
+
+/************************************************************************/
+/*                           Authenticate()                             */
+/************************************************************************/
+
+bool VSISwiftHandleHelper::CheckCredentialsV1()
+{
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
+    if( osAuthURL.empty() )
+        return false;
+
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
+    if( osAuthURL.empty() || osUser.empty() || osKey.empty() )
+    {
+        const char* pszMsg = "Missing SWIFT_STORAGE_URL+SWIFT_AUTH_TOKEN or "
+                             "SWIFT_AUTH_V1_URL+SWIFT_USER+SWIFT_KEY "
+                             "configuration options";
+        CPLDebug("SWIFT", "%s", pszMsg);
+        VSIError(VSIE_AWSInvalidCredentials, "%s", pszMsg);
+        return false;
+    }
+    return true;
+}
+
+// Re-use cached credentials if available
+bool VSISwiftHandleHelper::GetCachedAuthV1(CPLString& osStorageURL,
+                                           CPLString& osAuthToken)
+{
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
+
+    CPLMutexHolder oHolder( &g_hMutex );
+    // coverity[tainted_data]
+    if( osAuthURL == g_osLastAuthURL &&
+        osUser == g_osLastUser &&
+        osKey == g_osLastKey )
+    {
+        osStorageURL = g_osLastStorageURL;
+        osAuthToken = g_osLastAuthToken;
+        return true;
+    }
+    return false;
+}
+
+/************************************************************************/
+/*                        GetConfiguration()                            */
+/************************************************************************/
+
+bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL,
+                                            CPLString& osAuthToken)
+{
+    osStorageURL = CPLGetConfigOption("SWIFT_STORAGE_URL", "");
+    if( !osStorageURL.empty() )
+    {
+        osAuthToken = CPLGetConfigOption("SWIFT_AUTH_TOKEN", "");
+        if( osAuthToken.empty() )
+        {
+            const char* pszMsg = "Missing SWIFT_AUTH_TOKEN";
+            CPLDebug("SWIFT", "%s", pszMsg);
+            VSIError(VSIE_AWSInvalidCredentials, "%s", pszMsg);
+            return false;
+        }
+        return true;
+    }
+
+    if ( CheckCredentialsV1() )
+    {
+        if( GetCachedAuthV1(osStorageURL, osAuthToken) )
+            return true;
+        if( AuthV1(osStorageURL, osAuthToken) )
+            return true;
+    }
+
+    return false;
 }
 
 

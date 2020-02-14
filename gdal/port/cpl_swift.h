@@ -47,6 +47,11 @@ class VSISwiftHandleHelper final: public IVSIS3LikeHandleHelper
 
         static bool     GetConfiguration(CPLString& osStorageURL,
                                          CPLString& osAuthToken);
+        static bool GetCachedAuthV1(CPLString& osStorageURL,
+                                    CPLString& osAuthToken);
+        static bool CheckCredentialsV1();
+        static bool AuthV1(CPLString& osStorageURL,
+                           CPLString& osAuthToken);
 
         static CPLString BuildURL(const CPLString& osStorageURL,
                                   const CPLString& osBucket,
