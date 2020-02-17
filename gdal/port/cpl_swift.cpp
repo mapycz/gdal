@@ -141,7 +141,6 @@ CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
     CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
     CPLString osProjectDomainName = CPLGetConfigOption("SWIFT_PROJECT_DOMAIN_NAME", "");
     CPLString osProjectName = CPLGetConfigOption("SWIFT_PROJECT_NAME", "");
-    CPLString osRegionName = CPLGetConfigOption("SWIFT_REGION_NAME", "");
     CPLString osUserDomainName = CPLGetConfigOption("SWIFT_USER_DOMAIN_NAME", "");
 
     CPLJSONObject userDomain;
@@ -178,6 +177,59 @@ CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
     return obj;
 }
 
+bool VSISwiftHandleHelper::GetAuthV3StorageURL(const CPLHTTPResult *psResult,
+                                               CPLString& storageURL)
+{
+    if( psResult->pabyData == nullptr )
+        return false;
+
+    CPLJSONDocument resultJson;
+    resultJson.LoadMemory(psResult->pabyData);
+    CPLJSONObject result(resultJson.GetRoot());
+
+    CPLJSONObject token(result.GetObj("token"));
+    if( ! token.IsValid() )
+        return false;
+
+    CPLJSONArray catalog(token.GetArray("catalog"));
+    if( ! catalog.IsValid() )
+        return false;
+
+    CPLJSONArray endpoints;
+    for(int i = 0; i < catalog.Size(); ++i)
+    {
+        CPLJSONObject item(catalog[i]);
+        if( item.GetString("name") == "swift" )
+        {
+            endpoints = item.GetArray("endpoints");
+            break;
+        }
+    }
+
+    if( endpoints.Size() == 0 )
+        return false;
+
+    CPLString osRegionName = CPLGetConfigOption("SWIFT_REGION_NAME", "");
+    if( osRegionName.empty() )
+    {
+        CPLJSONObject endpoint(endpoints[0]);
+        storageURL = endcond.GetString("url");
+        return true;
+    }
+
+    for(int i = 0; i < endpoints.Size(); ++i)
+    {
+        CPLJSONObject endpoint(endpoints[0]);
+        if( endpoint.GetString("name") == osRegionName )
+        {
+            storageURL = endcond.GetString("url");
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
                                   CPLString& osAuthToken)
 {
@@ -196,17 +248,21 @@ bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
 
     osAuthToken = CSLFetchNameValueDef(psResult->papszHeaders,
                                        "X-Subject-Token", "");
-    CPLString osErrorMsg = psResult->pabyData ?
-                reinterpret_cast<const char*>(psResult->pabyData) : "";
-    CPLHTTPDestroyResult(psResult);
+
+    if( ! GetAuthV3StorageURL(psResult, osStorageURL) )
+        return false;
 
     if( osStorageURL.empty() || osAuthToken.empty() )
     {
+        CPLString osErrorMsg = reinterpret_cast<const char*>(psResult->pabyData);
         CPLDebug("SWIFT", "Authentication failed: %s", osErrorMsg.c_str());
         VSIError(VSIE_AWSInvalidCredentials,
                  "Authentication failed: %s", osErrorMsg.c_str());
+        CPLHTTPDestroyResult(psResult);
         return false;
     }
+
+    CPLHTTPDestroyResult(psResult);
 
     // Cache credentials
     {
