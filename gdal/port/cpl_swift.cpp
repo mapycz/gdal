@@ -150,10 +150,13 @@ CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
     CPLJSONObject projectDomain;
     projectDomain.Add("name", osProjectDomainName);
 
+    CPLJSONObject user;
+    user.Add("name", osUser);
+    user.Add("password", osKey);
+    user.Add("domain", userDomain);
+
     CPLJSONObject password;
-    password.Add("name", osUser);
-    password.Add("password", osKey);
-    password.Add("domain", userDomain);
+    password.Add("user", user);
 
     CPLJSONArray methods;
     methods.Add("password");
@@ -246,6 +249,7 @@ bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
     url += "auth/tokens";
 
     char** papszOptions = CSLSetNameValue(nullptr, "POSTFIELDS", post.data());
+    papszOptions = CSLSetNameValue(papszOptions, "HEADERS", "Content-Type: application/json");
     CPLHTTPResult *psResult = CPLHTTPFetchEx( url.c_str(), papszOptions,
                                               nullptr, nullptr,
                                               nullptr, nullptr );
