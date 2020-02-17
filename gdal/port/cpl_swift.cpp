@@ -133,6 +133,97 @@ bool VSISwiftHandleHelper::AuthV1(CPLString& osStorageURL,
 }
 
 /************************************************************************/
+/*                           AuthV3()                         */
+/************************************************************************/
+CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
+{
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
+    CPLString osProjectDomainName = CPLGetConfigOption("SWIFT_PROJECT_DOMAIN_NAME", "");
+    CPLString osProjectName = CPLGetConfigOption("SWIFT_PROJECT_NAME", "");
+    CPLString osRegionName = CPLGetConfigOption("SWIFT_REGION_NAME", "");
+    CPLString osUserDomainName = CPLGetConfigOption("SWIFT_USER_DOMAIN_NAME", "");
+
+    CPLJSONObject userDomain;
+    userDomain.Add("name", osUserDomainName);
+
+    CPLJSONObject projectDomain;
+    projectDomain.Add("name", osProjectDomainName);
+
+    CPLJSONObject password;
+    password.Add("name", osUser);
+    password.Add("password", osKey);
+    password.Add("domain", userDomain);
+
+    CPLJSONArray methods;
+    methods.Add("password");
+
+    CPLJSONObject identity;
+    identity.Add("methods", methods);
+    identity.Add("password", password);
+
+    CPLJSONObject project;
+    project.Add("name", osProjectName);
+    project.Add("domain", projectDomain);
+
+    CPLJSONObject scope;
+    scope.Add("project", project);
+
+    CPLJSONObject auth;
+    auth.Add("identity", identity);
+    auth.Add("scope", scope);
+
+    CPLJSONObject obj;
+    obj.Add("auth", auth);
+    return obj;
+}
+
+bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
+                                  CPLString& osAuthToken)
+{
+
+    CPLJSONDocument payload;
+    CPLJSONObject postObject;
+
+    char** papszHeaders = CSLSetNameValue(nullptr, "HEADERS",
+        CPLSPrintf("X-Auth-User: %s\r\n"
+                   "X-Auth-Key: %s",
+                   osUser.c_str(),
+                   osKey.c_str()));
+    CPLHTTPResult* psResult = CPLHTTPFetch(osAuthURL, papszHeaders);
+    CSLDestroy(papszHeaders);
+    if( psResult == nullptr )
+        return false;
+    osStorageURL = CSLFetchNameValueDef(psResult->papszHeaders,
+                                        "X-Storage-Url", "");
+    osAuthToken = CSLFetchNameValueDef(psResult->papszHeaders,
+                                       "X-Auth-Token", "");
+    CPLString osErrorMsg = psResult->pabyData ?
+                reinterpret_cast<const char*>(psResult->pabyData) : "";
+    CPLHTTPDestroyResult(psResult);
+    if( osStorageURL.empty() || osAuthToken.empty() )
+    {
+        CPLDebug("SWIFT", "Authentication failed: %s", osErrorMsg.c_str());
+        VSIError(VSIE_AWSInvalidCredentials,
+                 "Authentication failed: %s", osErrorMsg.c_str());
+        return false;
+    }
+
+    // Cache credentials
+    {
+        CPLMutexHolder oHolder( &g_hMutex );
+        g_osLastAuthURL = osAuthURL;
+        g_osLastUser = osUser;
+        g_osLastKey = osKey;
+        g_osLastStorageURL = osStorageURL;
+        g_osLastAuthToken = osAuthToken;
+    }
+
+    return true;
+}
+
+/************************************************************************/
 /*                           Authenticate()                             */
 /************************************************************************/
 
@@ -142,6 +233,12 @@ bool VSISwiftHandleHelper::Authenticate()
     if( !osAuthV1URL.empty() )
     {
         return AuthV1(m_osStorageURL, m_osAuthToken);
+    }
+
+    CPLString osAuthV3URL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
+    if( !osAuthV3URL.empty() )
+    {
+        return AuthV3(m_osStorageURL, m_osAuthToken);
     }
 
     return false;
@@ -171,11 +268,52 @@ bool VSISwiftHandleHelper::CheckCredentialsV1()
     return true;
 }
 
+bool VSISwiftHandleHelper::CheckCredentialsV3()
+{
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
+    if( osAuthURL.empty() )
+        return false;
+
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
+    if( osAuthURL.empty() || osUser.empty() || osKey.empty() )
+    {
+        const char* pszMsg = "Missing SWIFT_STORAGE_URL+SWIFT_AUTH_TOKEN or "
+                             "SWIFT_AUTH_V3_URL+SWIFT_USER+SWIFT_KEY "
+                             "configuration options";
+        CPLDebug("SWIFT", "%s", pszMsg);
+        VSIError(VSIE_AWSInvalidCredentials, "%s", pszMsg);
+        return false;
+    }
+    return true;
+}
+
 // Re-use cached credentials if available
 bool VSISwiftHandleHelper::GetCachedAuthV1(CPLString& osStorageURL,
                                            CPLString& osAuthToken)
 {
     CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
+
+    CPLMutexHolder oHolder( &g_hMutex );
+    // coverity[tainted_data]
+    if( osAuthURL == g_osLastAuthURL &&
+        osUser == g_osLastUser &&
+        osKey == g_osLastKey )
+    {
+        osStorageURL = g_osLastStorageURL;
+        osAuthToken = g_osLastAuthToken;
+        return true;
+    }
+    return false;
+}
+
+// Re-use cached credentials if available
+bool VSISwiftHandleHelper::GetCachedAuthV3(CPLString& osStorageURL,
+                                           CPLString& osAuthToken)
+{
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
     CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
     CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
 
@@ -211,6 +349,14 @@ bool VSISwiftHandleHelper::GetConfiguration(CPLString& osStorageURL,
             return false;
         }
         return true;
+    }
+
+    if ( CheckCredentialsV3() )
+    {
+        if( GetCachedAuthV3(osStorageURL, osAuthToken) )
+            return true;
+        if( AuthV3(osStorageURL, osAuthToken) )
+            return true;
     }
 
     if ( CheckCredentialsV1() )
