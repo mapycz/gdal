@@ -223,10 +223,11 @@ bool VSISwiftHandleHelper::GetAuthV3StorageURL(const CPLHTTPResult *psResult,
 
     for(int i = 0; i < endpoints.Size(); ++i)
     {
-        CPLJSONObject endpoint(endpoints[0]);
-        if( endpoint.GetString("name") == osRegionName )
+        CPLJSONObject endpoint(endpoints[i]);
+        if( endpoint.GetString("region") == osRegionName )
         {
             storageURL = endpoint.GetString("url");
+            CPLDebug("SWIFT", "Storage URL '%s' for region '%s'", storageURL.c_str(), osRegionName.c_str());
             return true;
         }
     }
