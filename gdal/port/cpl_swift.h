@@ -35,6 +35,7 @@
 #include <curl/curl.h>
 #include "cpl_http.h"
 #include "cpl_aws.h"
+#include "cpl_json.h"
 #include <map>
 
 class VSISwiftHandleHelper final: public IVSIS3LikeHandleHelper
@@ -52,6 +53,12 @@ class VSISwiftHandleHelper final: public IVSIS3LikeHandleHelper
         static bool CheckCredentialsV1();
         static bool AuthV1(CPLString& osStorageURL,
                            CPLString& osAuthToken);
+
+        static CPLJSONObject CreateAuthV3RequestObject();
+        static bool AuthV3(CPLString& osStorageURL,
+                           CPLString& osAuthToken);
+        static bool GetAuthV3StorageURL(const CPLHTTPResult *psResult,
+                                        CPLString& storageURL);
 
         static CPLString BuildURL(const CPLString& osStorageURL,
                                   const CPLString& osBucket,

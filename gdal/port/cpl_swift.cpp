@@ -29,6 +29,7 @@
 #include "cpl_vsi_error.h"
 #include "cpl_http.h"
 #include "cpl_multiproc.h"
+#include "cpl_json.h"
 
 // HOWTO setup a Docker-based SWIFT server:
 // https://github.com/MorrisJobke/docker-swift-onlyone
@@ -213,7 +214,7 @@ bool VSISwiftHandleHelper::GetAuthV3StorageURL(const CPLHTTPResult *psResult,
     if( osRegionName.empty() )
     {
         CPLJSONObject endpoint(endpoints[0]);
-        storageURL = endcond.GetString("url");
+        storageURL = endpoint.GetString("url");
         return true;
     }
 
@@ -222,7 +223,7 @@ bool VSISwiftHandleHelper::GetAuthV3StorageURL(const CPLHTTPResult *psResult,
         CPLJSONObject endpoint(endpoints[0]);
         if( endpoint.GetString("name") == osRegionName )
         {
-            storageURL = endcond.GetString("url");
+            storageURL = endpoint.GetString("url");
             return true;
         }
     }
@@ -234,7 +235,7 @@ bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
                                   CPLString& osAuthToken)
 {
     CPLJSONObject postObject(CreateAuthV3RequestObject());
-    std::string post = postObject.Format(Plain);
+    std::string post = postObject.Format(CPLJSONObject::PrettyFormat::Plain);
 
     CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
     char** papszOptions = CSLSetNameValue(nullptr, "POSTFIELDS", post.data());
