@@ -137,7 +137,6 @@ bool VSISwiftHandleHelper::AuthV1(CPLString& osStorageURL,
 /************************************************************************/
 CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
 {
-    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
     CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
     CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
     CPLString osProjectDomainName = CPLGetConfigOption("SWIFT_PROJECT_DOMAIN_NAME", "");
@@ -182,26 +181,25 @@ CPLJSONObject VSISwiftHandleHelper::CreateAuthV3RequestObject()
 bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
                                   CPLString& osAuthToken)
 {
+    CPLJSONObject postObject(CreateAuthV3RequestObject());
+    std::string post = postObject.Format(Plain);
 
-    CPLJSONDocument payload;
-    CPLJSONObject postObject;
+    CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
+    char** papszOptions = CSLSetNameValue(nullptr, "POSTFIELDS", post.data());
+    CPLHTTPResult *psResult = CPLHTTPFetchEx( osAuthURL.c_str(), papszOptions,
+                                              nullptr, nullptr,
+                                              nullptr, nullptr );
+    CSLDestroy( papszOptions );
 
-    char** papszHeaders = CSLSetNameValue(nullptr, "HEADERS",
-        CPLSPrintf("X-Auth-User: %s\r\n"
-                   "X-Auth-Key: %s",
-                   osUser.c_str(),
-                   osKey.c_str()));
-    CPLHTTPResult* psResult = CPLHTTPFetch(osAuthURL, papszHeaders);
-    CSLDestroy(papszHeaders);
     if( psResult == nullptr )
         return false;
-    osStorageURL = CSLFetchNameValueDef(psResult->papszHeaders,
-                                        "X-Storage-Url", "");
+
     osAuthToken = CSLFetchNameValueDef(psResult->papszHeaders,
-                                       "X-Auth-Token", "");
+                                       "X-Subject-Token", "");
     CPLString osErrorMsg = psResult->pabyData ?
                 reinterpret_cast<const char*>(psResult->pabyData) : "";
     CPLHTTPDestroyResult(psResult);
+
     if( osStorageURL.empty() || osAuthToken.empty() )
     {
         CPLDebug("SWIFT", "Authentication failed: %s", osErrorMsg.c_str());
