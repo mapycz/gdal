@@ -234,6 +234,8 @@ bool VSISwiftHandleHelper::GetAuthV3StorageURL(const CPLHTTPResult *psResult,
 bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
                                   CPLString& osAuthToken)
 {
+    CPLString osUser = CPLGetConfigOption("SWIFT_USER", "");
+    CPLString osKey = CPLGetConfigOption("SWIFT_KEY", "");
     CPLJSONObject postObject(CreateAuthV3RequestObject());
     std::string post = postObject.Format(CPLJSONObject::PrettyFormat::Plain);
 

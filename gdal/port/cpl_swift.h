@@ -54,6 +54,9 @@ class VSISwiftHandleHelper final: public IVSIS3LikeHandleHelper
         static bool AuthV1(CPLString& osStorageURL,
                            CPLString& osAuthToken);
 
+        static bool GetCachedAuthV3(CPLString& osStorageURL,
+                                    CPLString& osAuthToken);
+        static bool CheckCredentialsV3();
         static CPLJSONObject CreateAuthV3RequestObject();
         static bool AuthV3(CPLString& osStorageURL,
                            CPLString& osAuthToken);
