@@ -240,8 +240,13 @@ bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
     std::string post = postObject.Format(CPLJSONObject::PrettyFormat::Plain);
 
     CPLString osAuthURL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
+    std::string url = osAuthURL;
+    if( url.back() != '/' )
+        url += '/';
+    url += "auth/tokens";
+
     char** papszOptions = CSLSetNameValue(nullptr, "POSTFIELDS", post.data());
-    CPLHTTPResult *psResult = CPLHTTPFetchEx( osAuthURL.c_str(), papszOptions,
+    CPLHTTPResult *psResult = CPLHTTPFetchEx( url.c_str(), papszOptions,
                                               nullptr, nullptr,
                                               nullptr, nullptr );
     CSLDestroy( papszOptions );
