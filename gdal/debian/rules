@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with autoreconf --parallel
+
+export LDFLAGS=-Wl,-rpath=$(/opt/szn/libproj/lib/x86_64-linux-gnu)
+#export LDFLAGS=-L/opt/szn/libproj/lib/x86_64-linux-gnu/
+export CPPFLAGS=-I/opt/szn/libproj/include/
+
+configure_flags += \
+	--prefix=/opt/szn/gdal
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(configure_flags)
+
+override_dh_autoreconf:
+	./autogen.sh
+
+override_dh_auto_test:
+	echo "Tests are disabled"
