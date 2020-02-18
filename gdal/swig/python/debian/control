@@ -1,0 +1,16 @@
+Source: szn-python-gdal
+Section: mapy/Seznam
+Priority: optional
+Maintainer: mapy.alfa <mapy.alfa@firma.seznam.cz>
+Homepage: https://gitlab.seznam.net/mapycz/proj
+Standards-Version: 3.9.6.0
+Build-Depends: debhelper (>= 9),
+    dh-python,
+    python3-all,
+    python3-setuptools,
+    szn-gdal
+
+Package: szn-python3-gdal
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}, szn-gdal
+Description: GDAL

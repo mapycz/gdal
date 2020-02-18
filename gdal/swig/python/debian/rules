@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+#export DH_VERBOSE = 1
+
+GDAL_LIBS=/opt/szn/gdal/lib/x86_64-linux-gnu/
+
+export LDFLAGS=-Wl,-rpath=$(GDAL_LIBS) -L$(GDAL_LIBS)
+export CPPFLAGS=-I/opt/szn/gdal/include/
+export PATH:=${PATH}:/opt/szn/gdal/bin/
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
