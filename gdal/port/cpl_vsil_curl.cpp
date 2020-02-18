@@ -1348,9 +1348,9 @@ retry:
         goto retry;
     }
 
-    // Unauthorized => try to authenticate
     if( response_code == 401 && nRetryCount < m_nMaxRetry )
     {
+        CPLDebug("VSICURL", "Unauthorized, trying to authenticate");
         CPLFree(sWriteFuncData.pBuffer);
         CPLFree(sWriteFuncHeaderData.pBuffer);
         curl_easy_cleanup(hCurlHandle);
