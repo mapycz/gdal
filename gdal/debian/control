@@ -8,6 +8,7 @@ Build-Depends:
     debhelper (>= 9),
     dh-autoreconf,
     pkg-config (>= 0.19),
+    szn-libproj
 
 Package: szn-gdal
 Section: devel

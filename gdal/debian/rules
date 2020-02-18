@@ -3,8 +3,9 @@
 %:
 	dh $@ --with autoreconf --parallel
 
-export LDFLAGS=-Wl,-rpath=$(/opt/szn/libproj/lib/x86_64-linux-gnu)
-#export LDFLAGS=-L/opt/szn/libproj/lib/x86_64-linux-gnu/
+PROJ_LIBS=/opt/szn/libproj/lib/x86_64-linux-gnu
+
+export LDFLAGS=-Wl,-rpath=$(PROJ_LIBS) -L$(PROJ_LIBS)
 export CPPFLAGS=-I/opt/szn/libproj/include/
 
 configure_flags += \
@@ -18,3 +19,6 @@ override_dh_autoreconf:
 
 override_dh_auto_test:
 	echo "Tests are disabled"
+
+override_dh_auto_clean:
+	git clean -xfd
