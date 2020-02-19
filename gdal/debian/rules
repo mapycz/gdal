@@ -9,7 +9,41 @@ export LDFLAGS=-Wl,-rpath=$(PROJ_LIBS) -L$(PROJ_LIBS)
 export CPPFLAGS=-I/opt/szn/libproj/include/
 
 configure_flags += \
-	--prefix=/opt/szn/gdal
+	--prefix=/opt/szn/gdal \
+	--with-hide-internal-symbols=yes \
+	--with-rename-internal-libtiff-symbols=yes \
+	--with-rename-internal-libgeotiff-symbols=yes \
+	--with-threads \
+	--with-armadillo=yes \
+	--with-cfitsio=no \
+	--with-charls \
+	--with-curl \
+	--with-ecw=no \
+	--with-epsilon=/usr \
+	--with-freexl=yes \
+	--with-geos \
+	--with-geotiff=yes \
+	--with-grass=no \
+	--with-libjson-c=internal \
+	--with-libkml=yes \
+	--with-liblzma=yes \
+	--with-libtiff=yes \
+	--with-mrsid=no \
+	--with-mysql \
+	--with-netcdf \
+	--with-odbc \
+	--with-ogdi \
+	--with-openjpeg=yes \
+	--with-pg \
+	--with-poppler=yes \
+	--with-proj=yes \
+	--with-qhull=yes \
+	--with-sosi=yes \
+	--with-spatialite=/usr \
+	--with-sqlite3 \
+	--with-webp \
+	--with-xerces \
+	--with-zstd
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(configure_flags)
