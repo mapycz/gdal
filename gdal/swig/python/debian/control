@@ -8,8 +8,9 @@ Build-Depends: debhelper (>= 9),
     dh-python,
     python3-all,
     python3-setuptools,
+    szn-gdal
 
 Package: szn-python3-gdal
 Architecture: all
-Depends: ${python3:Depends}, ${misc:Depends}
+Depends: ${python3:Depends}, ${misc:Depends}, szn-gdal
 Description: GDAL
