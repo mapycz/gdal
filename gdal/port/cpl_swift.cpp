@@ -297,15 +297,17 @@ bool VSISwiftHandleHelper::AuthV3(CPLString& osStorageURL,
 bool VSISwiftHandleHelper::Authenticate()
 {
     CPLString osAuthV1URL = CPLGetConfigOption("SWIFT_AUTH_V1_URL", "");
-    if( !osAuthV1URL.empty() )
+    if( !osAuthV1URL.empty() && AuthV1(m_osStorageURL, m_osAuthToken) )
     {
-        return AuthV1(m_osStorageURL, m_osAuthToken);
+        RebuildURL();
+        return true;
     }
 
     CPLString osAuthV3URL = CPLGetConfigOption("SWIFT_AUTH_V3_URL", "");
-    if( !osAuthV3URL.empty() )
+    if( !osAuthV3URL.empty() && AuthV3(m_osStorageURL, m_osAuthToken) )
     {
-        return AuthV3(m_osStorageURL, m_osAuthToken);
+        RebuildURL();
+        return true;
     }
 
     return false;
