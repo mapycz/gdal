@@ -1,3 +1,9 @@
+szn-gdal (3.1.1) Seznam; urgency=medium
+
+  * Keystone V3 upstream implementation
+
+ -- Jiri Drbalek <jiri.drbalek@firma.seznam.cz>  Tue, 10 Mar 2020 13:17:36 +0100
+
 szn-gdal (3.1.0) Seznam; urgency=medium
 
   * Fixed Swift re-authentication

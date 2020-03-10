@@ -1,3 +1,9 @@
+szn-python-gdal (3.1.1) Seznam; urgency=medium
+
+  * GDAL 3.1.1
+
+ -- Jiri Drbalek <jiri.drbalek@firma.seznam.cz>  Tue, 10 Mar 2020 13:19:36 +0100
+
 szn-python-gdal (3.1.0) Seznam; urgency=medium
 
   * GDAL 3.1.0
